@@ -37,7 +37,7 @@ def parse_option():
                         help='number of training epochs')
 
     # optimization
-    parser.add_argument('--learning_rate', type=float, default=0.1,
+    parser.add_argument('--learning_rate', type=float, default=0.5,
                         help='learning rate')
     parser.add_argument('--lr_decay_epochs', type=str, default='30,40,50',
                         help='where to decay lr, can be a list')
