@@ -76,7 +76,7 @@ def parse_option():
     opt = parser.parse_args()
 
     # set the path according to the environment
-    opt.data_folder = '/data/vision/phillipi/gan-training/analysis-by-synthesis/dataset/biggan256tr10-png'
+    opt.data_folder = '/data/vision/phillipi/gan-training/analysis-by-synthesis/dataset/biggan256tr10-png/val'
     opt.model_path = './save/SupCon/{}_models'.format(opt.dataset)
     opt.tb_path = './save/SupCon/{}_tensorboard'.format(opt.dataset)
 
