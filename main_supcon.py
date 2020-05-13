@@ -115,8 +115,8 @@ def parse_option():
         os.makedirs(opt.save_folder)
 
     if opt.dataset == 'ganset':
-        # or 128 as you like
-        opt.img_size = 256
+        # or 256 as you like
+        opt.img_size = 128
     else:
         opt.img_size = 32
 
