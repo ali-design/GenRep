@@ -86,6 +86,7 @@ ipython_config.py
 
 # IDE
 *.code-workspace
+.vscode
 
 # pyenv
 .python-version
