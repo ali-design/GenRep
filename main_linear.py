@@ -29,7 +29,7 @@ def parse_option():
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=50,
                         help='save frequency')
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=128,
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
@@ -37,7 +37,7 @@ def parse_option():
                         help='number of training epochs')
 
     # optimization
-    parser.add_argument('--learning_rate', type=float, default=0.5,
+    parser.add_argument('--learning_rate', type=float, default=0.3,
                         help='learning rate')
     parser.add_argument('--lr_decay_epochs', type=str, default='30,40,50',
                         help='where to decay lr, can be a list')
@@ -98,7 +98,7 @@ def parse_option():
         opt.img_size = 32
         opt.n_cls = 100
     elif opt.dataset == 'ganset':
-        opt.img_size = 256
+        opt.img_size = 128
         opt.n_cls = 1000
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
