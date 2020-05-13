@@ -31,7 +31,7 @@ def parse_option():
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=20,
                         help='save frequency')
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=128,
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
@@ -39,7 +39,7 @@ def parse_option():
                         help='number of training epochs')
 
     # optimization
-    parser.add_argument('--learning_rate', type=float, default=0.05,
+    parser.add_argument('--learning_rate', type=float, default=0.03,
                         help='learning rate')
     parser.add_argument('--lr_decay_epochs', type=str, default='120,160',
                         help='where to decay lr, can be a list')
@@ -116,7 +116,7 @@ def parse_option():
 
     if opt.dataset == 'ganset':
         # or 128 as you like
-        opt.img_size = 256
+        opt.img_size = 128
     else:
         opt.img_size = 32
 
