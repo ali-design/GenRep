@@ -62,10 +62,12 @@ def parse_option():
     parser.add_argument('--ckpt', type=str, default='',
                         help='path to pre-trained model')
 
-    opt = parser.parse_args()
+    # specifying folders
+    parser.add_argument('-d', '--data_folder', type=str,
+                        default='/data/scratch-oc40/jahanian/ganclr_results/biggan256tr10-png_100K',
+                        help='the data folder')
 
-    # set the path according to the environment
-    opt.data_folder = './datasets/'
+    opt = parser.parse_args()
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])

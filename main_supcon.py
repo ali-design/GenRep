@@ -73,12 +73,20 @@ def parse_option():
     parser.add_argument('--trial', type=str, default='0',
                         help='id for recording multiple runs')
 
+    # specifying folders
+    parser.add_argument('-d', '--data_folder', type=str,
+                        default='/data/scratch-oc40/jahanian/ganclr_results/biggan256tr10-png_100K',
+                        help='the data folder')
+    parser.add_argument('-s', '--cache_folder', type=str,
+                        default='/data/scratch-oc40/jahanian/ganclr_results/',
+                        help='the saving folder')
+
     opt = parser.parse_args()
 
     # set the path according to the environment
-    opt.data_folder = '/data/vision/phillipi/gan-training/analysis-by-synthesis/dataset/biggan256tr10-png'
-    opt.model_path = '/data/scratch-oc40/jahanian/ganclr_results/SupCon/{}_models'.format(opt.dataset)
-    opt.tb_path = '/data/scratch-oc40/jahanian/ganclr_results/SupCon/{}_tensorboard'.format(opt.dataset)
+    opt.data_folder = opt.data_folder
+    opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
+    opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
