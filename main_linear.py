@@ -161,9 +161,9 @@ def set_loader(opt):
                                         train=False,
                                         transform=val_transform)
     elif opt.dataset == 'ganset':
-        train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+        train_dataset = datasets.ImageFolder(root=os.path.join('/data/vision/phillipi/gan-training/analysis-by-synthesis/dataset/biggan256tr10-png', 'val'),
                                              transform=train_transform)
-        val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),
+        val_dataset = datasets.ImageFolder(root=os.path.join('/data/scratch-oc40/jahanian/ganclr_results/dataset/biggan256tr10-png/', 'val'),
                                            transform=val_transform)
     else:
         raise ValueError(opt.dataset)
