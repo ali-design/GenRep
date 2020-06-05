@@ -50,8 +50,8 @@ def parse_option():
 
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
-    parser.add_argument('--dataset', type=str, default='ganset',
-                        choices=['ganset', 'cifar10', 'cifar100'], help='dataset')
+    parser.add_argument('--dataset', type=str, default='biggan',
+                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
 
     # other setting
     parser.add_argument('--cosine', action='store_true',
@@ -64,7 +64,7 @@ def parse_option():
 
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
-                        default='/data/scratch-oc40/jahanian/ganclr_results/biggan256tr10-png_100K',
+                        default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
                         help='the data folder')
 
     opt = parser.parse_args()
@@ -99,7 +99,7 @@ def parse_option():
     elif opt.dataset == 'cifar100':
         opt.img_size = 32
         opt.n_cls = 100
-    elif opt.dataset == 'ganset':
+    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         opt.img_size = 128
         opt.n_cls = 1000
     else:
@@ -116,20 +116,21 @@ def set_loader(opt):
     elif opt.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
-    elif opt.dataset == 'ganset':
+    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
     normalize = transforms.Normalize(mean=mean, std=std)
 
-    if opt.dataset == 'ganset':
+    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         train_transform = transforms.Compose([
             transforms.RandomResizedCrop(opt.img_size, scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ])
+        # Todo: arg this 256
         val_transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(opt.img_size),
@@ -162,7 +163,7 @@ def set_loader(opt):
         val_dataset = datasets.CIFAR100(root=opt.data_folder,
                                         train=False,
                                         transform=val_transform)
-    elif opt.dataset == 'ganset':
+    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                              transform=train_transform)
         val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),

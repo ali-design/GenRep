@@ -4,7 +4,12 @@ import math
 import numpy as np
 import torch
 import torch.optim as optim
-
+from torch.utils.data import Dataset
+from torchvision import datasets
+import glob
+import os 
+from PIL import Image
+import json
 
 class TwoCropTransform:
     """Create two crops of the same image"""
@@ -93,3 +98,51 @@ def save_model(model, optimizer, opt, epoch, save_file):
     }
     torch.save(state, save_file)
     del state
+
+
+class GansetDataset(datasets.ImageFolder):
+    """The idea is to load the anchor image and its neighbor"""
+
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None):
+        """
+        Args:
+            neighbor_std: std in the z-space
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        super(GansetDataset, self).__init__(root_dir, transform, target_transform=None)
+        self.neighbor_std = neighbor_std
+        self.root_dir = root_dir
+        self.transform = transform
+        self.classes, self.class_to_idx = self._find_classes(self.root_dir)
+
+        # get list of anchor images
+        self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
+        self.dir_size = len(self.imglist)
+
+    def __len__(self):
+        
+        return self.dir_size
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_name = self.imglist[idx]
+        image = Image.open(img_name)
+        img_name_neighbor = self.imglist[idx].replace('anchor',str(self.neighbor_std))
+        image_neighbor = Image.open(img_name_neighbor)
+        label = self.imglist[idx].split('/')[-2]
+        # with open('./utils/imagenet_class_index.json', 'rb') as fid:
+        #     imagenet_class_index_dict = json.load(fid)
+        # for key, value in imagenet_class_index_dict.items():
+        #     if value[0] == label:
+        #         label = key
+        #         break
+        label = self.class_to_idx[label]
+        if self.transform:
+            image = self.transform(image)
+            image_neighbor = self.transform(image_neighbor)
+
+        return image, image_neighbor, label
