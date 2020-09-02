@@ -11,7 +11,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
-from util import TwoCropTransform, AverageMeter, GansetDataset
+from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
 from util import adjust_learning_rate, warmup_learning_rate
 from util import set_optimizer, save_model
 from networks.resnet_big import SupConResNet
@@ -60,6 +60,7 @@ def parse_option():
                         choices=['SupCon', 'SimCLR'], help='choose method')
     parser.add_argument('--ganrndwalk', action='store_true', help='augment by walking in the gan latent space')
     parser.add_argument('--zstd', type=float, default=1.0, help='augment std away from z')
+    parser.add_argument('--ganzoomwalk', action='store_true', help='augment by steerability walk for rot3d')
 
     # temperature
     parser.add_argument('--temp', type=float, default=0.1,
@@ -98,6 +99,11 @@ def parse_option():
         opt.model_name = '{}_{}_ganrndwalk_zstd_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.zstd, opt.model, opt.learning_rate, 
                 opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
+    elif opt.ganzoomwalk:
+        opt.model_name = '{}_{}_ganzoomwalk_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.model, opt.learning_rate, 
+                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
+
     else: 
         opt.model_name = '{}_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.model, opt.learning_rate,
@@ -177,7 +183,10 @@ def set_loader(opt):
     elif opt.dataset == 'biggan':
         if opt.ganrndwalk:
             train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        neighbor_std=opt.zstd, transform=train_transform)        
+                                        neighbor_std=opt.zstd, transform=train_transform) 
+        elif opt.ganzoomwalk:
+            train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+                                        transform=train_transform)        
         else:
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                         transform=TwoCropTransform(train_transform))
