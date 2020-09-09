@@ -190,9 +190,16 @@ class GansteerDataset(datasets.ImageFolder):
         # elif coin < 0.33:
         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_zoom_100')
         if coin < 0.5:
-            img_name_neighbor.replace('biggan256tr1-png_steer_zoom_100', 'biggan256tr1-png_steer_color_100')
+            color_list = ['W_sample', 'R_sample', 'G_sample', 'B_sample']
+            color_choice = np.random.choice(color_list)
+            img_name_neighbor = img_name_neighbor.replace('biggan256tr1-png_steer_zoom_100', 'biggan256tr1-png_steer_color_100')
+            img_name_neighbor = img_name_neighbor.replace('sample', color_choice)
+
+            if color_choice in ['R_sample', 'G_sample', 'B_sample'] and 'nalpha' in img_name_neighbor:
+                img_name_neighbor = img_name_neighbor.replace('nalpha', 'palpha')
 
         # print('neighbor: ', img_name_neighbor)
+        # print(os.path.exists(img_name_neighbor))
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
