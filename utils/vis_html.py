@@ -16,13 +16,14 @@ def make_html(home_dir):
         header_str += '</tr>'
         fid.write(header_str)
 
-        dir_list = listdir(home_dir)   
+        dir_list = sorted(listdir(home_dir))
         # for ii in range(len(dir_list)): 
         for ii in range(3):
             images_dir = join(home_dir, dir_list[ii])
             if isfile(images_dir):
                 continue
-            file_names = [f for f in listdir(images_dir) if join(images_dir, f).endswith('_anchor.png')]
+            file_names = sorted([f for f in listdir(images_dir) if join(images_dir, f).endswith('_anchor.png')])
+
 
             for i in range(len(file_names)):
                 fid.write('<tr>')
@@ -40,5 +41,6 @@ def make_html(home_dir):
     finally:
         fid.close()
 
-make_html('/data/scratch-oc40/jahanian/ganclr_results/biggan256tr1-png_steer_rnd_100/val')
+make_html('/data/vision/torralba/scratch/xavierpuig/ganclr_results/gan_samples/biggan256tr1-png_steer_rndball_100/train')
+make_html('/data/vision/torralba/scratch/xavierpuig/ganclr_results/gan_samples/biggan256tr1-png_steer_rndgaussian_100/train')
 # make_html('./utils/val')

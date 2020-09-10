@@ -103,23 +103,27 @@ def save_model(model, optimizer, opt, epoch, save_file):
 class GansetDataset(datasets.ImageFolder):
     """The idea is to load the anchor image and its neighbor"""
 
-    def __init__(self, root_dir, neighbor_std=1.0, transform=None):
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None):
         """
         Args:
             neighbor_std: std in the z-space
             root_dir (string): Directory with all the images.
             transform (callable, optional): Optional transform to be applied
                 on a sample.
+            walktype: whether we are moving in a gaussian ball or a uniform ball
         """
         super(GansetDataset, self).__init__(root_dir, transform, target_transform=None)
         self.neighbor_std = neighbor_std
+        self.uniformb = uniformb
         self.root_dir = root_dir
         self.transform = transform
+        self.walktype = walktype
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
 
         # get list of anchor images
         self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
         self.dir_size = len(self.imglist)
+        print('Length: {}'.format(self.dir_size))
 
     def __len__(self):
         

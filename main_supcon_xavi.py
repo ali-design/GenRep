@@ -98,13 +98,13 @@ def parse_option():
         opt.lr_decay_epochs.append(int(it))
 
     if opt.ganrndwalk:
-        if opts.walktype == 'gaussian':
-            walk_type = 'ztsd_{}'.format(opt.ztsd)
-        elif opts.walktype == 'uniform':
-            walk_type = 'uniform_{}'.format(opt.uniformb)
+        if opt.walktype == 'gaussian':
+            walk_type = 'zstd_{}'.format(opt.zstd)
+        elif opt.walktype == 'uniform':
+            walk_type = 'uniform_{}'.format(opt.zstd)
 
         opt.model_name = '{}_{}_ganrndwalk_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, walktype, opt.model, opt.learning_rate, 
+                format(opt.method, opt.dataset, walk_type, opt.model, opt.learning_rate, 
                 opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
     else: 
         opt.model_name = '{}_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
@@ -189,7 +189,7 @@ def set_loader(opt):
                                             neighbor_std=opt.zstd, transform=train_transform)        
             else:
                 train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                            uniformb=opt.uniformb, transform=train_transform, walktype='uniform')        
+                                            neighbor_std=opt.zstd, transform=train_transform, walktype='uniform')        
 
         else:
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
