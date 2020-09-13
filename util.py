@@ -1,15 +1,37 @@
 from __future__ import print_function
 
+import ipdb
 import math
 import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import Dataset
+from pytorch_pretrained_biggan import (
+    BigGAN,
+    truncated_noise_sample,
+    one_hot_from_int
+)
 from torchvision import datasets
+import random
 import glob
 import os 
 from PIL import Image
 import json
+from scipy.stats import truncnorm
+
+def convert_to_images(obj):
+    """ Convert an output tensor from BigGAN in a list of images.
+    """
+    # need to fix import, see: https://github.com/huggingface/pytorch-pretrained-BigGAN/pull/14/commits/68a7446951f0b9400ebc7baf466ccc48cdf1b14c
+    if not isinstance(obj, np.ndarray):
+        obj = obj.detach().numpy()
+    obj = obj.transpose((0, 2, 3, 1))
+    obj = np.clip(((obj + 1) / 2.0) * 256, 0, 255)
+    img = []
+    for i, out in enumerate(obj):
+        out_array = np.asarray(np.uint8(out), dtype=np.uint8)
+        img.append(Image.fromarray(out_array))
+    return img
 
 class TwoCropTransform:
     """Create two crops of the same image"""
@@ -98,6 +120,115 @@ def save_model(model, optimizer, opt, epoch, save_file):
     }
     torch.save(state, save_file)
     del state
+
+
+class OnlineGansetDataset(Dataset):
+    """The idea is to load the anchor image and its neighbor"""
+
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None, truncation=1.0, dim_z=128,
+                 seed=None, walktype='gaussian', uniformb=None, num_samples=130000, size_biggan=256):
+        """
+        Args:
+            neighbor_std: std in the z-space
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+            walktype: whether we are moving in a gaussian ball or a uniform ball
+        """
+        super(OnlineGansetDataset, self).__init__()
+        self.neighbor_std = neighbor_std
+        self.uniformb = uniformb
+        self.root_dir = root_dir
+        self.transform = transform
+        self.walktype = walktype
+        self.classes, self.class_to_idx = self.find_classes(self.root_dir)
+        self.dim_z = dim_z
+        self.truncation = truncation
+        self.random_state = None if seed is None else np.random.RandomState(seed) 
+
+        model_name = 'biggan-deep-%s' % size_biggan
+        self.model = BigGAN.from_pretrained(model_name).cuda()
+        self.num_samples = num_samples
+        with open('utils/imagenet_class_index.json', 'rb') as fid:
+            self.imagenet_class_index_dict = json.load(fid)
+        list100 = os.listdir('/data/scratch-oc40/jahanian/ganclr_results/ImageNet100/train')
+        self.class_indices_interest = []
+
+        imagenet_class_index_keys = self.imagenet_class_index_dict.keys()
+        for key in imagenet_class_index_keys:
+            if self.imagenet_class_index_dict[key][0] in list100:
+                self.class_indices_interest.append(key)
+
+
+        # get list of anchor images
+
+    def find_classes(self, dir):
+        classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+        classes.sort()
+        class_to_idx = {classes[i]: i for i in range(len(classes))}
+        return classes, class_to_idx
+
+    def gen_images(self, z, class_ind, use_grad=False):
+        if class_ind.ndim == 3:
+            class_ind = class_ind.squeeze(1)
+            z = z.squeeze(1)
+
+        class_vector = class_ind.cuda()
+        noise_vector = z.cuda()
+        if not use_grad:
+            with torch.no_grad():
+                output = self.model(noise_vector, class_vector, self.truncation)
+        else:
+            output = self.model(noise_vector[s], class_vector[s], self.truncation)
+        output = (((output + 1) / 2.0) * 256)
+        output = output.cpu()
+        output = convert_to_images(output)
+        # TODO: clipping and other ops to convert to image. Unsure if differentiable
+        return output
+
+    def gen_images_transform(self, z, class_ind, use_grad=False):
+        images = self.gen_images(z, class_ind, use_grad)
+        if self.transform:
+            images = [self.transform(image) for image in images]
+        images = torch.cat([im.unsqueeze(0) for im in images], 0)
+        return images
+
+    def sample_class(self):
+        indices = random.choices(self.class_indices_interest, k=1)
+        return indices
+
+    def sample_noise(self):
+        values = truncnorm.rvs(-2, 2, size=(1, self.dim_z), random_state=self.random_state).astype(np.float32)
+        return values
+
+    def sample_neighbors(self, values):
+        if self.walktype == 'gaussian':
+            neighbors = np.random.normal(0, self.neighbor_std, size=(1, self.dim_z)).astype(np.float32)
+        else:
+            raise NotImplementedError
+        return values + neighbors
+            
+
+
+        
+
+
+    def __len__(self):
+        
+        return self.num_samples
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        label = int(self.sample_class()[0])
+
+        one_hot_index = one_hot_from_int(label)
+        w = self.sample_noise()
+        dw = self.sample_neighbors(w)
+
+
+
+        return w, dw, one_hot_index, label
 
 
 class GansetDataset(datasets.ImageFolder):

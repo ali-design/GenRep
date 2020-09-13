@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+
 import os
 import sys
 import argparse
@@ -11,11 +12,12 @@ import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
-from util import TwoCropTransform, AverageMeter, GansetDataset
+from util import TwoCropTransform, AverageMeter, GansetDataset, OnlineGansetDataset
 from util import adjust_learning_rate, warmup_learning_rate
 from util import set_optimizer, save_model
 from networks.resnet_big import SupConResNet
 from losses import SupConLoss
+import ipdb
 
 try:
     import apex
@@ -104,7 +106,7 @@ def parse_option():
         elif opt.walktype == 'uniform':
             walk_type = 'uniform_{}'.format(opt.zstd)
 
-        opt.model_name = '{}_{}_ganrndwalk_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+        opt.model_name = '{}_{}_ganrndwalkonline_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
                 format(opt.method, opt.dataset, walk_type, opt.model, opt.learning_rate, 
                 opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
     else: 
@@ -172,32 +174,9 @@ def set_loader(opt):
         normalize,
     ])
 
-    if opt.dataset == 'cifar10':
-        train_dataset = datasets.CIFAR10(root=opt.data_folder,
-                                         transform=TwoCropTransform(train_transform),
-                                         download=True)
-    elif opt.dataset == 'cifar100':
-        train_dataset = datasets.CIFAR100(root=opt.data_folder,
-                                          transform=TwoCropTransform(train_transform),
-                                          download=True)
-    elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
-    elif opt.dataset == 'biggan':
-        if opt.ganrndwalk:
-            if opt.walktype == 'gaussian':
-                train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                            neighbor_std=opt.zstd, transform=train_transform)        
-            else:
-                train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                            neighbor_std=opt.zstd, transform=train_transform, walktype='uniform')        
-
-        else:
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
-    else:
-        raise ValueError(opt.dataset)
-
+    train_dataset = OnlineGansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), neighbor_std=opt.zstd, 
+            transform=train_transform, walktype='gaussian')        
+    
     train_sampler = None
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=opt.batch_size, shuffle=(train_sampler is None),
@@ -224,7 +203,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt):
+def train(train_loader, model, criterion, optimizer, epoch, opt, logger=None):
     """one epoch training"""
     model.train()
 
@@ -235,11 +214,10 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     end = time.time()
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
-    for idx, data in enumerate(train_loader):
+    for idx, data_w in enumerate(train_loader):
+        w, dw, one_hot_index, labels = data_w
         data_time.update(time.time() - end)
-        images = [data[0], data[1]]
-        labels = data[2]
-        
+        images = [train_loader.dataset.gen_images_transform(wc, one_hot_index) for wc in [w, dw]]
         images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                            dim=1)
         images = images.view(-1, 3, opt.img_size, opt.img_size).cuda(non_blocking=True)
@@ -306,7 +284,7 @@ def main():
 
         # train for one epoch
         time1 = time.time()
-        loss = train(train_loader, model, criterion, optimizer, epoch, opt)
+        loss = train(train_loader, model, criterion, optimizer, epoch, opt, logger)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
