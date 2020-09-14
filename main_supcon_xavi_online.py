@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import os
 import sys
+import numpy as np
 import argparse
 import time
 import math
@@ -175,7 +176,7 @@ def set_loader(opt):
     ])
 
     train_dataset = OnlineGansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), neighbor_std=opt.zstd, 
-            transform=train_transform, walktype='gaussian')        
+            transform=train_transform, walktype='gaussian', device_id=1)        
     
     train_sampler = None
     train_loader = torch.utils.data.DataLoader(
@@ -214,15 +215,23 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, logger=None):
     end = time.time()
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
+
     for idx, data_w in enumerate(train_loader):
         w, dw, one_hot_index, labels = data_w
         data_time.update(time.time() - end)
-        images = [train_loader.dataset.gen_images_transform(wc, one_hot_index) for wc in [w, dw]]
-        images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
+        images_w, im_orig_w = train_loader.dataset.gen_images_transform(w, one_hot_index)
+        images_dw, im_orig_dw = train_loader.dataset.gen_images_transform(dw, one_hot_index)
+
+        images = torch.cat([images_w.unsqueeze(1), images_dw.unsqueeze(1)],
                            dim=1)
         images = images.view(-1, 3, opt.img_size, opt.img_size).cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
+
+        if idx % 1000 == 0:
+            images_cat = [np.concatenate([np.array(im1), np.array(im2)], 1) for im1, im2 in zip(im_orig_w, im_orig_dw)]
+            logger.log_images('im_anchor', images_cat[:2], step=epoch)
+
 
         # warm-up learning rate
         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)

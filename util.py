@@ -126,7 +126,7 @@ class OnlineGansetDataset(Dataset):
     """The idea is to load the anchor image and its neighbor"""
 
     def __init__(self, root_dir, neighbor_std=1.0, transform=None, truncation=1.0, dim_z=128,
-                 seed=None, walktype='gaussian', uniformb=None, num_samples=130000, size_biggan=256):
+                 seed=None, walktype='gaussian', uniformb=None, num_samples=130000, size_biggan=256, device_id=0):
         """
         Args:
             neighbor_std: std in the z-space
@@ -147,7 +147,8 @@ class OnlineGansetDataset(Dataset):
         self.random_state = None if seed is None else np.random.RandomState(seed) 
 
         model_name = 'biggan-deep-%s' % size_biggan
-        self.model = BigGAN.from_pretrained(model_name).cuda()
+        self.device_id = device_id
+        self.model = BigGAN.from_pretrained(model_name).cuda(self.device_id)
         self.num_samples = num_samples
         with open('utils/imagenet_class_index.json', 'rb') as fid:
             self.imagenet_class_index_dict = json.load(fid)
@@ -173,14 +174,13 @@ class OnlineGansetDataset(Dataset):
             class_ind = class_ind.squeeze(1)
             z = z.squeeze(1)
 
-        class_vector = class_ind.cuda()
-        noise_vector = z.cuda()
+        class_vector = class_ind.cuda(self.device_id)
+        noise_vector = z.cuda(self.device_id)
         if not use_grad:
             with torch.no_grad():
                 output = self.model(noise_vector, class_vector, self.truncation)
         else:
-            output = self.model(noise_vector[s], class_vector[s], self.truncation)
-        output = (((output + 1) / 2.0) * 256)
+            output = self.model(noise_vector, class_vector, self.truncation)
         output = output.cpu()
         output = convert_to_images(output)
         # TODO: clipping and other ops to convert to image. Unsure if differentiable
@@ -188,10 +188,11 @@ class OnlineGansetDataset(Dataset):
 
     def gen_images_transform(self, z, class_ind, use_grad=False):
         images = self.gen_images(z, class_ind, use_grad)
+        images_orig = images
         if self.transform:
             images = [self.transform(image) for image in images]
         images = torch.cat([im.unsqueeze(0) for im in images], 0)
-        return images
+        return images, images_orig
 
     def sample_class(self):
         indices = random.choices(self.class_indices_interest, k=1)
