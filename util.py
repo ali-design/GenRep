@@ -15,6 +15,7 @@ from torchvision import datasets
 import random
 import glob
 import os 
+import xml.etree.ElementTree as ET
 from PIL import Image
 import json
 from scipy.stats import truncnorm
@@ -121,6 +122,52 @@ def save_model(model, optimizer, opt, epoch, save_file):
     torch.save(state, save_file)
     del state
 
+
+class VOCDetectionDataset(datasets.VOCDetection):
+    def __init__(self,
+                 root,
+                 year='2012',
+                 image_set='train',
+                 download=False,
+                 transform=None,
+                 target_transform=None,
+                 transforms=None):
+
+        super(VOCDetectionDataset, self).__init__(root, 
+                                                  year, 
+                                                  image_set, 
+                                                  download, 
+                                                  transform, 
+                                                  target_transform, 
+                                                  transforms)
+        self.class_names = [
+                'person',
+                'bird', 'cat', 'cow', 'dog', 'horse', 'sheep',
+                'aeroplane', 'bicycle', 'boat', 'bus', 'car', 'motorbike', 'train',
+                'bottle', 'chair', 'diningtable', 'pottedplant', 'sofa', 'tvmonitor'
+        ]
+        self.class_dict = {name: i for i, name in enumerate(self.class_names)}
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where target is a dictionary of the XML tree.
+        """
+        img = Image.open(self.images[index]).convert('RGB')
+        target = self.parse_voc_xml(
+            ET.parse(self.annotations[index]).getroot())
+
+        if self.transforms is not None:
+            img, target = self.transforms(img, target)
+
+        objects = list(set([self.class_dict[obj['name']] for obj in target['annotation']['object']]))
+        objects_one_hot = np.zeros((len(self.class_names)))
+        objects_one_hot[np.array(objects)] = 1
+
+        return img, objects_one_hot
 
 class OnlineGansetDataset(Dataset):
     """The idea is to load the anchor image and its neighbor"""

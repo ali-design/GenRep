@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import sys
 import argparse
+import ipdb
 import time
 import math
 
@@ -12,7 +13,9 @@ import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 from util import AverageMeter
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
+from torchnet.meter import mAPMeter
 from util import set_optimizer
+from util import VOCDetectionDataset
 from networks.resnet_big import SupConResNet, LinearClassifier
 
 try:
@@ -51,7 +54,7 @@ def parse_option():
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet', 'voc2007'], help='dataset')
 
     # other setting
     parser.add_argument('--cosine', action='store_true',
@@ -102,6 +105,9 @@ def parse_option():
     elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         opt.img_size = 128
         opt.n_cls = 1000
+    elif opt.dataset == 'voc2007':
+        opt.img_size = 128
+        opt.n_cls = 20
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
 
@@ -116,14 +122,14 @@ def set_loader(opt):
     elif opt.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
-    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet' or opt.dataset == 'voc2007':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
     normalize = transforms.Normalize(mean=mean, std=std)
 
-    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet' or opt.dataset == 'voc2007':
         train_transform = transforms.Compose([
             transforms.RandomResizedCrop(opt.img_size, scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
@@ -168,6 +174,17 @@ def set_loader(opt):
                                              transform=train_transform)
         val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),
                                            transform=val_transform)
+    elif opt.dataset == 'voc2007':
+        train_dataset = VOCDetectionDataset(root=opt.data_folder,
+                                              year='2007',
+                                              image_set='train',
+                                              transform=train_transform)
+
+        val_dataset = VOCDetectionDataset(root=opt.data_folder,
+                                              year='2007',
+                                              image_set='val',
+                                              transform=train_transform)
+
     else:
         raise ValueError(opt.dataset)
 
@@ -184,7 +201,10 @@ def set_loader(opt):
 
 def set_model(opt):
     model = SupConResNet(name=opt.model, img_size=opt.img_size)
-    criterion = torch.nn.CrossEntropyLoss()
+    if opt.dataset == 'voc2007':
+        criterion = torch.nn.BCEWithLogitsLoss()
+    else:
+        criterion = torch.nn.CrossEntropyLoss()
 
     classifier = LinearClassifier(name=opt.model, num_classes=opt.n_cls)
 
@@ -219,6 +239,7 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
     data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
+    meanAPmetric = mAPMeter()
 
     end = time.time()
     for idx, (images, labels) in enumerate(train_loader):
@@ -239,8 +260,12 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
 
         # update metric
         losses.update(loss.item(), bsz)
-        acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-        top1.update(acc1[0], bsz)
+        if opt.dataset == 'voc2007':
+            meanAPmetric.add(output.detach(), labels)
+
+        else:
+            acc1, acc5 = accuracy(output, labels, topk=(1, 5))
+            top1.update(acc1[0], bsz)
 
         # SGD
         optimizer.zero_grad()
@@ -253,16 +278,29 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
 
         # print info
         if (idx + 1) % opt.print_freq == 0:
-            print('Train: [{0}][{1}/{2}]\t'
-                  'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'loss {loss.val:.3f} ({loss.avg:.3f})\t'
-                  'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                   epoch, idx + 1, len(train_loader), batch_time=batch_time,
-                   data_time=data_time, loss=losses, top1=top1))
-            sys.stdout.flush()
+            if opt.dataset == 'voc2007':
+                meanAPmetricV = meanAPmetric.value().item()
+                print('Train: [{0}][{1}/{2}]\t'
+                      'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'loss {loss.val:.3f} ({loss.avg:.3f})\t'
+                      'mAP {meanAP:.3f}'.format(
+                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
+                       data_time=data_time, loss=losses, top1=top1, meanAP=meanAPmetricV))
 
-    return losses.avg, top1.avg
+            else:
+                print('Train: [{0}][{1}/{2}]\t'
+                      'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'loss {loss.val:.3f} ({loss.avg:.3f})\t'
+                      'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
+                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
+                       data_time=data_time, loss=losses, top1=top1))
+            sys.stdout.flush()
+    if opt.dataset == 'voc2007':
+        return losses.avg, meanAPmetric.value().item()
+    else:
+        return losses.avg, top1.avg
 
 
 def validate(val_loader, model, classifier, criterion, opt):
@@ -273,6 +311,7 @@ def validate(val_loader, model, classifier, criterion, opt):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
+    meanAPmetric = mAPMeter()
 
     with torch.no_grad():
         end = time.time()
@@ -287,23 +326,40 @@ def validate(val_loader, model, classifier, criterion, opt):
 
             # update metric
             losses.update(loss.item(), bsz)
-            acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-            top1.update(acc1[0], bsz)
+            if opt.dataset == 'voc2007':
+                meanAPmetric.add(output.detach(), labels)
+
+            else:
+                acc1, acc5 = accuracy(output, labels, topk=(1, 5))
+                top1.update(acc1[0], bsz)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
 
             if idx % opt.print_freq == 0:
-                print('Test: [{0}/{1}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                       idx, len(val_loader), batch_time=batch_time,
-                       loss=losses, top1=top1))
+                if opt.dataset == 'voc2007':
+                    meanAPmetricV = meanAPmetric.value().item()
+                    print('Test: [{0}/{1}]\t'
+                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                          'mAP {meanAP:.3f}'.format(
+                           idx, len(val_loader), batch_time=batch_time,
+                           loss=losses, meanAP=meanAPmetricV))
+                else:
+                    print('Test: [{0}/{1}]\t'
+                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                          'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
+                           idx, len(val_loader), batch_time=batch_time,
+                           loss=losses, top1=top1))
 
-    print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
-    return losses.avg, top1.avg
+    if opt.dataset == 'voc2007':
+        print(' * mAP {mAP:.3f}'.format(mAP=meanAPmetric.value().item()))
+        return losses.avg, meanAPmetric.value().item()
+    else:
+        print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
+        return losses.avg, top1.avg
 
 
 def main():
