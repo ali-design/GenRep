@@ -159,9 +159,10 @@ class VOCDetectionDataset(datasets.VOCDetection):
         img = Image.open(self.images[index]).convert('RGB')
         target = self.parse_voc_xml(
             ET.parse(self.annotations[index]).getroot())
-
+        
         if self.transforms is not None:
             img, target = self.transforms(img, target)
+
 
         objects = list(set([self.class_dict[obj['name']] for obj in target['annotation']['object']]))
         objects_one_hot = np.zeros((len(self.class_names)))

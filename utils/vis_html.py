@@ -1,8 +1,11 @@
 from os import listdir
+import pdb
 from os.path import isfile, join, basename, isfile
 import numpy as np
+import random
 
 def make_html(home_dir):
+    random.seed(0)
     std_list = ['0.1', '0.2', '0.5', '1.0']
     try:
         index_html_path = join(home_dir, "index.html")
@@ -17,13 +20,15 @@ def make_html(home_dir):
         fid.write(header_str)
 
         dir_list = sorted(listdir(home_dir))
+        #random.shuffle(dir_list)
         # for ii in range(len(dir_list)): 
-        for ii in range(3):
+        for ii in range(100):
+            print(ii)
             images_dir = join(home_dir, dir_list[ii])
             if isfile(images_dir):
                 continue
             file_names = sorted([f for f in listdir(images_dir) if join(images_dir, f).endswith('_anchor.png')])
-
+            file_names = file_names[:3]
 
             for i in range(len(file_names)):
                 fid.write('<tr>')

@@ -129,20 +129,37 @@ def set_loader(opt):
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
     normalize = transforms.Normalize(mean=mean, std=std)
 
-    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet' or opt.dataset == 'voc2007':
+    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(opt.img_size, scale=(0.2, 1.)),
+            transforms.RandomResizedCrop(opt.img_size*0.875, scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ])
         # Todo: arg this 256
         val_transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(opt.img_size),
+            transforms.Resize(opt.img_size),
+            transforms.CenterCrop(opt.img_size*0.875),
             transforms.ToTensor(),
             normalize,
         ])
+    elif opt.dataset == "voc2007":
+
+        train_transform = transforms.Compose([
+            transforms.Resize(opt.img_size),
+            transforms.RandomResizedCrop(opt.img_size*0.875, scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        # Todo: arg this 256
+        val_transform = transforms.Compose([
+            transforms.Resize(opt.img_size),
+            transforms.CenterCrop(opt.img_size*0.875),
+            transforms.ToTensor(),
+            normalize,
+        ])
+
     else:
         train_transform = transforms.Compose([
             transforms.RandomResizedCrop(size=opt.img_size, scale=(0.2, 1.)),
@@ -262,6 +279,8 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
         losses.update(loss.item(), bsz)
         if opt.dataset == 'voc2007':
             meanAPmetric.add(output.detach(), labels)
+            import ipdb
+            ipdb.set_trace()
 
         else:
             acc1, acc5 = accuracy(output, labels, topk=(1, 5))
