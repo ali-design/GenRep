@@ -217,19 +217,19 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, logger=None):
     #     data_time.update(time.time() - end)
 
     for idx, data_w in enumerate(train_loader):
-        w, dw, one_hot_index, labels = data_w
+        z, dz, one_hot_index, labels = data_w
         data_time.update(time.time() - end)
-        images_w, im_orig_w = train_loader.dataset.gen_images_transform(w, one_hot_index)
-        images_dw, im_orig_dw = train_loader.dataset.gen_images_transform(dw, one_hot_index)
+        images_z, im_orig_z = train_loader.dataset.gen_images_transform(z, one_hot_index)
+        images_dz, im_orig_dz = train_loader.dataset.gen_images_transform(dz, one_hot_index)
 
-        images = torch.cat([images_w.unsqueeze(1), images_dw.unsqueeze(1)],
+        images = torch.cat([images_z.unsqueeze(1), images_dz.unsqueeze(1)],
                            dim=1)
         images = images.view(-1, 3, opt.img_size, opt.img_size).cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
 
         if idx % 1000 == 0:
-            images_cat = [np.concatenate([np.array(im1), np.array(im2)], 1) for im1, im2 in zip(im_orig_w, im_orig_dw)]
+            images_cat = [np.concatenate([np.array(im1), np.array(im2)], 1) for im1, im2 in zip(im_orig_z, im_orig_dz)]
             logger.log_images('im_anchor', images_cat[:2], step=epoch)
 
 
