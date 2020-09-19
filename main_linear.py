@@ -131,7 +131,7 @@ def set_loader(opt):
 
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(opt.img_size*0.875, scale=(0.2, 1.)),
+            transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
@@ -139,7 +139,7 @@ def set_loader(opt):
         # Todo: arg this 256
         val_transform = transforms.Compose([
             transforms.Resize(opt.img_size),
-            transforms.CenterCrop(opt.img_size*0.875),
+            transforms.CenterCrop(int(opt.img_size*0.875)),
             transforms.ToTensor(),
             normalize,
         ])
@@ -147,7 +147,7 @@ def set_loader(opt):
 
         train_transform = transforms.Compose([
             transforms.Resize(opt.img_size),
-            transforms.RandomResizedCrop(opt.img_size*0.875, scale=(0.2, 1.)),
+            transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
@@ -155,7 +155,7 @@ def set_loader(opt):
         # Todo: arg this 256
         val_transform = transforms.Compose([
             transforms.Resize(opt.img_size),
-            transforms.CenterCrop(opt.img_size*0.875),
+            transforms.CenterCrop(int(opt.img_size*0.875)),
             transforms.ToTensor(),
             normalize,
         ])
