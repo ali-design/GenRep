@@ -132,7 +132,7 @@ def parse_option():
                     1 + math.cos(math.pi * opt.warm_epochs / opt.epochs)) / 2
         else:
             opt.warmup_to = opt.learning_rate
-
+ 
     opt.tb_folder = os.path.join(opt.tb_path, opt.model_name)
     if not os.path.isdir(opt.tb_folder):
         os.makedirs(opt.tb_folder)
@@ -240,8 +240,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     #     data_time.update(time.time() - end)
     for idx, data in enumerate(train_loader):
         data_time.update(time.time() - end)
-        images = [data[0], data[1]]
-        labels = data[2]
+        images = [data[0][0], data[0][1]]
+        labels = data[1]
         
         images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                            dim=1)

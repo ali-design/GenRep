@@ -172,30 +172,11 @@ def set_loader(opt):
             normalize,
         ])
 
-    if opt.dataset == 'cifar10':
-        train_dataset = datasets.CIFAR10(root=opt.data_folder,
-                                         transform=train_transform,
-                                         download=True)
-        val_dataset = datasets.CIFAR10(root=opt.data_folder,
-                                       train=False,
-                                       transform=val_transform)
-    elif opt.dataset == 'cifar100':
-        train_dataset = datasets.CIFAR100(root=opt.data_folder,
-                                          transform=train_transform,
-                                          download=True)
-        val_dataset = datasets.CIFAR100(root=opt.data_folder,
-                                        train=False,
-                                        transform=val_transform)
-    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-        train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                             transform=train_transform)
-        val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),
-                                           transform=val_transform)
-    elif opt.dataset == 'voc2007':
+    if opt.dataset == 'voc2007':
         train_dataset = VOCDetectionDataset(root=opt.data_folder,
                                               year='2007',
                                               image_set='train',
-                                              transform=train_transform)
+                                              transform=val_transform)
 
         val_dataset = VOCDetectionDataset(root=opt.data_folder,
                                               year='2007',
@@ -205,9 +186,8 @@ def set_loader(opt):
     else:
         raise ValueError(opt.dataset)
 
-    train_sampler = None
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=opt.batch_size, shuffle=(train_sampler is None),
+        train_dataset, batch_size=opt.batch_size, shuffle=False,
         num_workers=opt.num_workers, pin_memory=True, sampler=train_sampler)
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=opt.batch_size, shuffle=False,
