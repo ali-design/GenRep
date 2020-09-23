@@ -227,139 +227,23 @@ def set_model(opt):
     return model, classifier, criterion
 
 
-def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
-    """one epoch training"""
-    model.eval()
-    classifier.train()
 
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    meanAPmetric = mAPMeter()
-
-    end = time.time()
-    for idx, (images, labels) in enumerate(train_loader):
-        data_time.update(time.time() - end)
-
-        images = images.cuda(non_blocking=True)
-        labels = labels.cuda(non_blocking=True)
-        bsz = labels.shape[0]
-
-        # warm-up learning rate
-        warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
-
-        # compute loss
-        with torch.no_grad():
-            features = model.encoder(images)
-        output = classifier(features.detach())
-        loss = criterion(output, labels)
-
-        # update metric
-        losses.update(loss.item(), bsz)
-        if opt.dataset == 'voc2007':
-            meanAPmetric.add(output.detach(), labels)
-            import ipdb
-            ipdb.set_trace()
-
-        else:
-            acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-            top1.update(acc1[0], bsz)
-
-        # SGD
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        # print info
-        if (idx + 1) % opt.print_freq == 0:
-            if opt.dataset == 'voc2007':
-                meanAPmetricV = meanAPmetric.value().item()
-                print('Train: [{0}][{1}/{2}]\t'
-                      'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                      'loss {loss.val:.3f} ({loss.avg:.3f})\t'
-                      'mAP {meanAP:.3f}'.format(
-                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
-                       data_time=data_time, loss=losses, top1=top1, meanAP=meanAPmetricV))
-
-            else:
-                print('Train: [{0}][{1}/{2}]\t'
-                      'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                      'loss {loss.val:.3f} ({loss.avg:.3f})\t'
-                      'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
-                       data_time=data_time, loss=losses, top1=top1))
-            sys.stdout.flush()
-    if opt.dataset == 'voc2007':
-        return losses.avg, meanAPmetric.value().item()
-    else:
-        return losses.avg, top1.avg
-
-
-def validate(val_loader, model, classifier, criterion, opt):
+def extract(val_loader, model, opt, path_file_out):
     """validation"""
     model.eval()
-    classifier.eval()
-
-    batch_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    meanAPmetric = mAPMeter()
+    labels_all = []
+    fts_all = []
 
     with torch.no_grad():
         end = time.time()
         for idx, (images, labels) in enumerate(val_loader):
             images = images.float().cuda()
             labels = labels.cuda()
-            bsz = labels.shape[0]
-
-            # forward
-            output = classifier(model.encoder(images))
-            loss = criterion(output, labels)
-
-            # update metric
-            losses.update(loss.item(), bsz)
-            if opt.dataset == 'voc2007':
-                meanAPmetric.add(output.detach(), labels)
-
-            else:
-                acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-                top1.update(acc1[0], bsz)
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if idx % opt.print_freq == 0:
-                if opt.dataset == 'voc2007':
-                    meanAPmetricV = meanAPmetric.value().item()
-                    print('Test: [{0}/{1}]\t'
-                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                          'mAP {meanAP:.3f}'.format(
-                           idx, len(val_loader), batch_time=batch_time,
-                           loss=losses, meanAP=meanAPmetricV))
-                else:
-                    print('Test: [{0}/{1}]\t'
-                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                          'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                           idx, len(val_loader), batch_time=batch_time,
-                           loss=losses, top1=top1))
-
-    if opt.dataset == 'voc2007':
-        print(' * mAP {mAP:.3f}'.format(mAP=meanAPmetric.value().item()))
-        return losses.avg, meanAPmetric.value().item()
-    else:
-        print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
-        return losses.avg, top1.avg
-
+            
+            output = model.encoder(images)
+            ipdb.set_trace()
+            fts_all.append(output)
+            labels_all.append(labels)
 
 def main():
     best_acc = 0
@@ -375,23 +259,11 @@ def main():
     optimizer = set_optimizer(opt, classifier)
 
     # training routine
-    for epoch in range(1, opt.epochs + 1):
-        adjust_learning_rate(opt, optimizer, epoch)
 
-        # train for one epoch
-        time1 = time.time()
-        loss, acc = train(train_loader, model, classifier, criterion,
-                          optimizer, epoch, opt)
-        time2 = time.time()
-        print('Train epoch {}, total time {:.2f}, accuracy:{:.2f}'.format(
-            epoch, time2 - time1, acc))
+    extract(train_loader, model, opt, '../scratch/features/{}/train.npz'.format(features_folder))
+    extract(val_loader, model, opt, '../scratch/features/{}/val.npz'.format(features_folder))
+    
 
-        # eval for one epoch
-        loss, val_acc = validate(val_loader, model, classifier, criterion, opt)
-        if val_acc > best_acc:
-            best_acc = val_acc
-
-    print('best accuracy: {:.2f}'.format(best_acc))
 
 
 if __name__ == '__main__':

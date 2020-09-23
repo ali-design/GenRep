@@ -245,7 +245,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
         
         images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                            dim=1)
-        images = images.view(-1, 3, opt.img_size, opt.img_size).cuda(non_blocking=True)
+        im_size = images[0].shape[-1]
+        images = images.view(-1, 3, im_size, im_size).cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
 
