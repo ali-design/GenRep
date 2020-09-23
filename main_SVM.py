@@ -9,7 +9,7 @@ import math
 
 import torch
 import torch.backends.cudnn as cudnn
-
+from sklearn import svm
 from torchvision import transforms, datasets
 from util import AverageMeter
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
@@ -188,7 +188,7 @@ def set_loader(opt):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=opt.batch_size, shuffle=False,
-        num_workers=opt.num_workers, pin_memory=True, sampler=train_sampler)
+        num_workers=opt.num_workers, pin_memory=True, sampler=None)
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=opt.batch_size, shuffle=False,
         num_workers=opt.num_workers, pin_memory=True)
@@ -242,8 +242,12 @@ def extract(val_loader, model, opt, path_file_out):
             
             output = model.encoder(images)
             ipdb.set_trace()
-            fts_all.append(output)
-            labels_all.append(labels)
+            fts_all.append(output.cpu().numpy())
+            labels_all.append(labels.cpu().numpy())
+
+    fts_all = np.concatenate(fts_all, 0)
+    labels_all = np.concatenate(labels_all, 0)
+    return fts_all, labels_all
 
 def main():
     best_acc = 0
@@ -259,9 +263,9 @@ def main():
     optimizer = set_optimizer(opt, classifier)
 
     # training routine
-
-    extract(train_loader, model, opt, '../scratch/features/{}/train.npz'.format(features_folder))
-    extract(val_loader, model, opt, '../scratch/features/{}/val.npz'.format(features_folder))
+    features_folder = 'data_{}'.format(opt.dataset)
+    fts_train, labels_train = extract(train_loader, model, opt, '../scratch/features/{}/train.npz'.format(features_folder))
+    fts_val, labels_val = extract(val_loader, model, opt, '../scratch/features/{}/val.npz'.format(features_folder))
     
 
 

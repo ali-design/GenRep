@@ -241,7 +241,7 @@ def set_model(opt):
         classifier = classifier.cuda()
         criterion = criterion.cuda()
         cudnn.benchmark = True
-
+        # ipdb.set_trace()
         model.load_state_dict(state_dict)
 
     return model, classifier, criterion
