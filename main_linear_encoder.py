@@ -16,13 +16,14 @@ from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from torchnet.meter import mAPMeter
 from util import set_optimizer
 from util import VOCDetectionDataset
-from networks.resnet_big_encoder import SupConResNet, LinearClassifier
+from networks.resnet_big import SupConResNet, LinearClassifier
 
 try:
     import apex
     from apex import amp, optimizers
 except ImportError:
     pass
+
 
 def parse_option():
     parser = argparse.ArgumentParser('argument for training')
@@ -217,9 +218,6 @@ def set_loader(opt):
 
 def set_model(opt):
     model = SupConResNet(name=opt.model, img_size=opt.img_size)
-    # for k in model.state_dict().items():
-    #     print(k)
-
     if opt.dataset == 'voc2007':
         criterion = torch.nn.BCEWithLogitsLoss()
     else:
@@ -288,8 +286,6 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
         # compute loss
         with torch.no_grad():
             features = model.encoder(images)
-        # import ipdb
-        # ipdb.set_trace()
         output = classifier(features.detach())
         loss = criterion(output, labels)
 
@@ -297,8 +293,8 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
         losses.update(loss.item(), bsz)
         if opt.dataset == 'voc2007':
             meanAPmetric.add(output.detach(), labels)
-            # import ipdb
-            # ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
 
         else:
             acc1, acc5 = accuracy(output, labels, topk=(1, 5))
