@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 import json
 from scipy.stats import truncnorm
+import random
 
 def convert_to_images(obj):
     """ Convert an output tensor from BigGAN in a list of images.
@@ -362,28 +363,49 @@ class GansteerDataset(datasets.ImageFolder):
         img_name = self.imglist[idx]
         # print('anchor image:', img_name)
         image = Image.open(img_name)
-        if (int(os.path.basename(self.imglist[idx]).split('_')[4].replace('sample', '')) % 2 ==0):
-            img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
-        else:
-            img_name_neighbor = self.imglist[idx].replace('anchor','nalpha')
 
-        # lets randomly switch to a steered color neighbor:
-        coin = np.random.rand()
-        # if coin < 0.66 and coin >= 0.33:
-        #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_color_100')
-        # elif coin < 0.33:
-        #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_zoom_100')
-        if coin < 0.5:
-            color_list = ['W_sample', 'R_sample', 'G_sample', 'B_sample']
-            color_choice = np.random.choice(color_list)
-            img_name_neighbor = img_name_neighbor.replace('biggan256tr1-png_steer_zoom_100', 'biggan256tr1-png_steer_color_100')
-            img_name_neighbor = img_name_neighbor.replace('sample', color_choice)
+#         ## for composite
+#         neighbor_names = ['palpha', 'nalpha']
+#         neighbor_choice = np.random.choice(neighbor_names)
+#         img_name_neighbor = self.imglist[idx].replace('anchor',neighbor_choice)
 
-            if color_choice in ['R_sample', 'G_sample', 'B_sample'] and 'nalpha' in img_name_neighbor:
-                img_name_neighbor = img_name_neighbor.replace('nalpha', 'palpha')
+        # for composite2
+        neighbor_names = ['palpha_R', 'palpha_G', 'palpha_B', 'palpha_W', 'palpha_D', 'nalpha_R', 'nalpha_G', 'nalpha_B', 'nalpha_W', 'nalpha_D']
+        random.shuffle(neighbor_names)
+        for i in range(len(neighbor_names)):            
+            neighbor_choice = neighbor_names[i]
+            img_name_neighbor = self.imglist[idx].replace('anchor',neighbor_choice)
+            if os.path.isfile(img_name_neighbor):
+                break
+                
 
-        # print('neighbor: ', img_name_neighbor)
-        # print(os.path.exists(img_name_neighbor))
+#         ## for zoom-rgb-max-alt
+#         coin = np.random.rand()
+#         if coin < 0.5:
+#             img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
+
+#         if (int(os.path.basename(self.imglist[idx]).split('_')[4].replace('sample', '')) % 2 ==0):
+#             img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
+#         else:
+#             img_name_neighbor = self.imglist[idx].replace('anchor','nalpha')
+
+#         # lets randomly switch to a steered color neighbor:
+#         coin = np.random.rand()
+#         # if coin < 0.66 and coin >= 0.33:
+#         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_color_100')
+#         # elif coin < 0.33:
+#         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_zoom_100')
+#         if coin < 0.5:
+#             color_list = ['W_sample', 'R_sample', 'G_sample', 'B_sample']
+#             color_choice = np.random.choice(color_list)
+#             img_name_neighbor = img_name_neighbor.replace('biggan256tr1-png_steer_zoom_100', 'biggan256tr1-png_steer_color_100')
+#             img_name_neighbor = img_name_neighbor.replace('sample', color_choice)
+
+#             if color_choice in ['R_sample', 'G_sample', 'B_sample'] and 'nalpha' in img_name_neighbor:
+#                 img_name_neighbor = img_name_neighbor.replace('nalpha', 'palpha')
+
+#         print('anchor, neighbor: ', img_name, img_name_neighbor)
+#         # print(os.path.exists(img_name_neighbor))
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:

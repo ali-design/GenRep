@@ -11,7 +11,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
-from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
+from util import TwoCropTransform, AverageMeter
 from util import adjust_learning_rate, warmup_learning_rate
 from util import set_optimizer, save_model
 from networks.resnet_big import SupConResNet
@@ -31,7 +31,7 @@ def parse_option():
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=20,
                         help='save frequency')
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=128,
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
@@ -52,24 +52,20 @@ def parse_option():
 
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
-    parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+    parser.add_argument('--dataset', type=str, default='ganset',
+                        choices=['ganset', 'cifar10', 'cifar100'], help='dataset')
 
     # method
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
-    parser.add_argument('--ganrndwalk', action='store_true', help='augment by walking in the gan latent space')
-    parser.add_argument('--walktype', type=str, help='how should we random walk on latent space',
-                        choices=['gaussian', 'uniform'])
-    parser.add_argument('--zstd', type=float, default=1.0, help='augment std away from z')
-    parser.add_argument('--ganzoomwalk', action='store_true', help='augment by steerability walk for rot3d')
 
     # temperature
     parser.add_argument('--temp', type=float, default=0.1,
                         help='temperature for loss function')
 
     # other setting
-    parser.add_argument('--cosine', action='store_true', help='using cosine annealing')
+    parser.add_argument('--cosine', action='store_true',
+                        help='using cosine annealing')
     parser.add_argument('--syncBN', action='store_true',
                         help='using synchronized batch normalization')
     parser.add_argument('--warm', action='store_true',
@@ -79,7 +75,7 @@ def parse_option():
 
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
-                        default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
+                        default='/data/scratch-oc40/jahanian/ganclr_results/biggan256tr1-png_100',
                         help='the data folder')
     parser.add_argument('-s', '--cache_folder', type=str,
                         default='/data/scratch-oc40/jahanian/ganclr_results/',
@@ -97,24 +93,9 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    if opt.ganrndwalk:
-        if opts.walktype == 'gaussian':
-            walk_type = 'ztsd_{}'.format(opt.ztsd)
-        elif opts.walktype == 'uniform':
-            walk_type = 'uniform_{}'.format(opt.uniformb)
-
-        opt.model_name = '{}_{}_ganrndwalk_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, walktype, opt.model, opt.learning_rate, 
-                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
-    elif opt.ganzoomwalk:
-        opt.model_name = '{}_{}_ganzoomwalk_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.learning_rate, 
-                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
-
-    else: 
-        opt.model_name = '{}_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.learning_rate,
-                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
+    opt.model_name = '{}_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+        format(opt.method, opt.dataset, opt.model, opt.learning_rate,
+               opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
     opt.model_name = '{}_{}'.format(opt.model_name, os.path.basename(opt.data_folder))
     if opt.cosine:
@@ -133,7 +114,7 @@ def parse_option():
                     1 + math.cos(math.pi * opt.warm_epochs / opt.epochs)) / 2
         else:
             opt.warmup_to = opt.learning_rate
- 
+
     opt.tb_folder = os.path.join(opt.tb_path, opt.model_name)
     if not os.path.isdir(opt.tb_folder):
         os.makedirs(opt.tb_folder)
@@ -142,10 +123,10 @@ def parse_option():
     if not os.path.isdir(opt.save_folder):
         os.makedirs(opt.save_folder)
 
-    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-        # or 256 as you like
+    if opt.dataset == 'ganset':
+        # or 128 as you like
         opt.img_size = 128
-    elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
+    else:
         opt.img_size = 32
 
     return opt
@@ -159,7 +140,7 @@ def set_loader(opt):
     elif opt.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
-    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    elif opt.dataset == 'ganset':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     else:
@@ -167,7 +148,7 @@ def set_loader(opt):
     normalize = transforms.Normalize(mean=mean, std=std)
 
     train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
+        transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomApply([
             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
@@ -185,20 +166,9 @@ def set_loader(opt):
         train_dataset = datasets.CIFAR100(root=opt.data_folder,
                                           transform=TwoCropTransform(train_transform),
                                           download=True)
-    elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
-    elif opt.dataset == 'biggan':
-        if opt.ganrndwalk:
-            train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        neighbor_std=opt.zstd, transform=train_transform)        
-
-        elif opt.ganzoomwalk:
-            train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        transform=train_transform)        
-        else:
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
+    elif opt.dataset == 'ganset':
+        train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+                                             transform=TwoCropTransform(train_transform))
     else:
         raise ValueError(opt.dataset)
 
@@ -237,23 +207,18 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     losses = AverageMeter()
 
     end = time.time()
-    # for idx, (images, labels) in enumerate(train_loader):
-    #     data_time.update(time.time() - end)
-    for idx, data in enumerate(train_loader):
+    for idx, (images, labels) in enumerate(train_loader):
         data_time.update(time.time() - end)
-        images = [data[0], data[1]]
-        labels = data[2]
+
         images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                            dim=1)
-        # print('2) images shape', images.shape)
-
         images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
-        # print('3) images shape', images.shape)
-
         labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
+
         # warm-up learning rate
         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
+
         # compute loss
         features = model(images)
         features = features.view(bsz, 2, -1)

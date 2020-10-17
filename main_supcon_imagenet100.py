@@ -237,21 +237,15 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     losses = AverageMeter()
 
     end = time.time()
-    # for idx, (images, labels) in enumerate(train_loader):
-    #     data_time.update(time.time() - end)
-    for idx, data in enumerate(train_loader):
+    for idx, (images, labels) in enumerate(train_loader):
         data_time.update(time.time() - end)
-        images = [data[0], data[1]]
-        labels = data[2]
+
         images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                            dim=1)
-        # print('2) images shape', images.shape)
-
         images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
-        # print('3) images shape', images.shape)
-
         labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
+
         # warm-up learning rate
         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
         # compute loss
