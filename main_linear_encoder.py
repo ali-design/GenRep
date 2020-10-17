@@ -103,7 +103,7 @@ def parse_option():
         opt.img_size = 32
         opt.n_cls = 100
     elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-        opt.img_size = 128
+        opt.img_size = 256 # for GAN encoder, we keep it 256 unless later when we want to train the GAN encoder it on 112x112
         opt.n_cls = 1000
     elif opt.dataset == 'voc2007':
         opt.img_size = 128
@@ -131,8 +131,9 @@ def set_loader(opt):
 
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
-            transforms.RandomHorizontalFlip(),
+            transforms.Resize((opt.img_size, opt.img_size)),
+            # transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
+            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ])
