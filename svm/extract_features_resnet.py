@@ -6,15 +6,20 @@ import argparse
 import ipdb
 import time
 import math
+from tqdm import tqdm
+import numpy as np
+sys.path.append('../')
 
 import torch
 import torch.backends.cudnn as cudnn
-from sklearn import svm
+# from sklearn import svm
 from torchvision import transforms, datasets
-from util import AverageMeter
-from util import adjust_learning_rate, warmup_learning_rate, accuracy
+from torchvision.models import resnet50
+# from util import AverageMeter
+# from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from torchnet.meter import mAPMeter
-from util import set_optimizer
+# from util import set_optimizer
+from torch import nn
 from util import VOCDetectionDataset
 from networks.resnet_big import SupConResNet, LinearClassifier
 
@@ -106,7 +111,7 @@ def parse_option():
         opt.img_size = 128
         opt.n_cls = 1000
     elif opt.dataset == 'voc2007':
-        opt.img_size = 128
+        opt.img_size = 256
         opt.n_cls = 20
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
@@ -171,7 +176,11 @@ def set_loader(opt):
             transforms.ToTensor(),
             normalize,
         ])
-
+    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+        train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+                                             transform=train_transform)
+        val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),
+                                           transform=val_transform)
     if opt.dataset == 'voc2007':
         train_dataset = VOCDetectionDataset(root=opt.data_folder,
                                               year='2007',
@@ -228,20 +237,21 @@ def set_model(opt):
 
 
 
-def extract(val_loader, model, opt, path_file_out):
+def extract(val_loader, model, opt):
     """validation"""
     model.eval()
     labels_all = []
     fts_all = []
+    
 
     with torch.no_grad():
         end = time.time()
-        for idx, (images, labels) in enumerate(val_loader):
+        for idx, (images, labels) in enumerate(tqdm(val_loader)):
             images = images.float().cuda()
             labels = labels.cuda()
-            
-            output = model.encoder(images)
-            ipdb.set_trace()
+            # ipdb.set_trace()
+            output = model(images).squeeze(-1).squeeze(-1)
+            # ipdb.set_trace()
             fts_all.append(output.cpu().numpy())
             labels_all.append(labels.cpu().numpy())
 
@@ -252,22 +262,31 @@ def extract(val_loader, model, opt, path_file_out):
 def main():
     best_acc = 0
     opt = parse_option()
-
+    mode = 'resnetimagenet'
     # build data loader
     train_loader, val_loader = set_loader(opt)
 
     # build model and criterion
-    model, classifier, criterion = set_model(opt)
 
     # build optimizer
-    optimizer = set_optimizer(opt, classifier)
+    # optimizer = set_optimizer(opt, classifier)
 
     # training routine
-    features_folder = 'data_{}'.format(opt.dataset)
-    fts_train, labels_train = extract(train_loader, model, opt, '../scratch/features/{}/train.npz'.format(features_folder))
-    fts_val, labels_val = extract(val_loader, model, opt, '../scratch/features/{}/val.npz'.format(features_folder))
-    
+    model = resnet50(pretrained=True).cuda()
+    modules = list(model.children())[:-1]
+    model = nn.Sequential(*modules)
 
+    features_folder = 'data_{}_{}'.format(opt.dataset, mode)
+    f1 = '../../scratch/features/{}/train.npz'.format(features_folder)
+    f2 = '../../scratch/features/{}/val.npz'.format(features_folder)
+    fts_train, labels_train = extract(train_loader, model, opt)
+    fts_val, labels_val = extract(val_loader, model, opt)
+
+    dir_name = os.path.dirname(f1)
+    if not os.path.isdir(dir_name):
+        os.makedirs(dir_name)
+    np.savez(f1, features=fts_train, labels=labels_train)
+    np.savez(f2, features=fts_val, labels=labels_val)
 
 
 if __name__ == '__main__':
