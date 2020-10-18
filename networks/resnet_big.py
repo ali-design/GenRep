@@ -187,6 +187,16 @@ class SupConResNet(nn.Module):
         feat = F.normalize(self.head(feat), dim=1)
         return feat
 
+class SupCEResNet(nn.Module):
+    """encoder + classifier"""
+    def __init__(self, name='resnet50', num_classes=10):
+        super(SupCEResNet, self).__init__()
+        model_fun, dim_in = model_dict[name]
+        self.encoder = model_fun()
+        self.fc = nn.Linear(dim_in, num_classes)
+
+    def forward(self, x):
+        return self.fc(self.encoder(x))
 
 class LinearClassifier(nn.Module):
     """Linear classifier"""
