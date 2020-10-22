@@ -161,6 +161,8 @@ def set_loader(opt):
     ])
 
     val_transform = transforms.Compose([
+        transforms.Resize(opt.img_size),
+        transforms.CenterCrop(int(opt.img_size*0.875)),
         transforms.ToTensor(),
         normalize,
     ])
@@ -210,7 +212,7 @@ def set_loader(opt):
 
 
 def set_model(opt):
-    model = SupCEResNet(name=opt.model, num_classes=opt.n_cls)
+    model = SupCEResNet(name=opt.model, num_classes=opt.n_cls, img_size=int(opt.img_size*0.875))
     criterion = torch.nn.CrossEntropyLoss()
 
     # enable synchronized Batch Normalization
