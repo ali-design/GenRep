@@ -58,7 +58,7 @@ def parse_option():
 
     # other setting
     parser.add_argument('--ganrndwalk', action='store_true', help='augment by walking in the gan latent space')
-    parser.add_argument('--walktype', type=str, help='how should we random walk on latent space',
+    parser.add_argument('--walktype', type=str, default="gaussian", help='how should we random walk on latent space',
                         choices=['gaussian', 'uniform'])
     parser.add_argument('--zstd', type=float, default=1.0, help='augment std away from z')
     parser.add_argument('--ganzoomwalk', action='store_true', help='augment by steerability walk for rot3d')
@@ -94,13 +94,13 @@ def parse_option():
 
     opt.method = 'SupCE'
     if opt.ganrndwalk:
-        if opts.walktype == 'gaussian':
-            walk_type = 'ztsd_{}'.format(opt.ztsd)
-        elif opts.walktype == 'uniform':
+        if opt.walktype == 'gaussian':
+            walk_type = 'zstd_{}'.format(opt.zstd)
+        elif opt.walktype == 'uniform':
             walk_type = 'uniform_{}'.format(opt.uniformb)
 
         opt.model_name = '{}_{}_ganrndwalk_{}_{}_lr_{}_decay_{}_bsz_{}_trial_{}'.\
-            format(opt.method, opt.dataset, walktype, opt.model, opt.learning_rate, 
+            format(opt.method, opt.dataset, opt.walktype, opt.model, opt.learning_rate, 
                 opt.weight_decay, opt.batch_size, opt.trial)
     elif opt.ganzoomwalk:
         opt.model_name = '{}_{}_ganzoomwalk_{}_lr_{}_decay_{}_bsz_{}_trial_{}'.\
@@ -216,19 +216,28 @@ def set_loader(opt):
             train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
                                         neighbor_std=opt.zstd, transform=train_transform)        
 
-            val_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'val'), 
-                                        neighbor_std=opt.zstd, transform=train_transform)        
+            try:
+                val_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'val'), 
+                                            neighbor_std=opt.zstd, transform=train_transform)        
+            except:
+                val_dataset = None
 
         elif opt.ganzoomwalk:
             train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
                                         transform=train_transform)        
-            val_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'val'), 
-                                        transform=val_transform)        
+            try:
+                val_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'val'), 
+                                            transform=val_transform)        
+            except:
+                val_dataset = None
         else:
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                         transform=TwoCropTransform(train_transform))
-            val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),
-                                                 transform=TwoCropTransform(val_transform))
+            try:
+                val_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'val'),
+                                                     transform=TwoCropTransform(val_transform))
+            except:
+                val_dataset = None
     else:
         raise ValueError(opt.dataset)
 
@@ -236,9 +245,12 @@ def set_loader(opt):
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=opt.batch_size, shuffle=(train_sampler is None),
         num_workers=opt.num_workers, pin_memory=True, sampler=train_sampler)
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=32, shuffle=False,
-        num_workers=8, pin_memory=True)
+    if val_dataset is None:
+        val_loader = None
+    else:
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, batch_size=32, shuffle=False,
+            num_workers=8, pin_memory=True)
 
     return train_loader, val_loader
 
@@ -271,7 +283,13 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     top1 = AverageMeter()
 
     end = time.time()
-    for idx, (images, labels) in enumerate(train_loader):
+    for idx, content in enumerate(train_loader):
+        if len(content) == 2:
+            images = content[0]
+            labels = content[1]
+        elif len(content) == 3:
+            images = [content[0], content[1]]
+            labels = content[2]
         data_time.update(time.time() - end)
         images = images[1]
         images = images.cuda(non_blocking=True)
@@ -386,9 +404,12 @@ def main():
         logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
         # evaluation
-        loss, val_acc = validate(val_loader, model, criterion, opt)
-        logger.log_value('val_loss', loss, epoch)
-        logger.log_value('val_acc', val_acc, epoch)
+        if val_loader is not None:
+            loss, val_acc = validate(val_loader, model, criterion, opt)
+            logger.log_value('val_loss', loss, epoch)
+            logger.log_value('val_acc', val_acc, epoch)
+        else:
+            val_acc = 0.
 
         if val_acc > best_acc:
             best_acc = val_acc

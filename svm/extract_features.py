@@ -72,6 +72,7 @@ def parse_option():
     parser.add_argument('-d', '--data_folder', type=str,
                         default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
                         help='the data folder')
+    parser.add_argument('--expname', type=str)
 
     opt = parser.parse_args()
 
@@ -229,7 +230,7 @@ def set_model(opt):
         criterion = criterion.cuda()
         cudnn.benchmark = True
 
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
 
     return model, classifier, criterion
 
@@ -259,7 +260,7 @@ def extract(val_loader, model, opt):
 def main():
     best_acc = 0
     opt = parse_option()
-    mode = 'supconvalltfs'
+    mode = opt.expname
     # build data loader
     train_loader, val_loader = set_loader(opt)
 

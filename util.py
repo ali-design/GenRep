@@ -316,7 +316,8 @@ class GansetDataset(datasets.ImageFolder):
 
         img_name = self.imglist[idx]
         image = Image.open(img_name)
-        img_name_neighbor = self.imglist[idx].replace('anchor',str(self.neighbor_std))
+        neighbor = random.randint(1,5)
+        img_name_neighbor = self.imglist[idx].replace('anchor','{}._{}'.format(str(int(self.neighbor_std)), str(neighbor)))
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
@@ -343,14 +344,21 @@ class GansteerDataset(datasets.ImageFolder):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+        print("Creating dataset: ", root_dir)
         super(GansteerDataset, self).__init__(root_dir, transform, target_transform=None)
+        print("Done")
         self.root_dir = root_dir
         self.transform = transform
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
 
         # get list of nalpha images
         self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
+        print("Loading data...")
+        indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
+        # Make sure there are at most 1300 images per class
+        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
+        print('Length: {}'.format(self.dir_size))
 
     def __len__(self):
         
