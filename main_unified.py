@@ -27,7 +27,7 @@ except ImportError:
 def parse_option():
     parser = argparse.ArgumentParser('argument for training')
     parser.add_argument('--encoding_type', type=str, default='contrastive',
-                        choices=['contrastive, crossentropy', 'autoencoding'])
+                        choices=['contrastive', 'crossentropy', 'autoencoding'])
     parser.add_argument('--print_freq', type=int, default=10,
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=20,
@@ -213,8 +213,17 @@ def set_loader(opt):
 
 
 def set_model(opt):
-    model = SupConResNet(name=opt.model, img_size=int(opt.img_size*0.875))
-    criterion = SupConLoss(temperature=opt.temp)
+    if opt.encoding_type == 'contrastive':
+        model = SupConResNet(name=opt.model, img_size=int(opt.img_size*0.875))
+        criterion = SupConLoss(temperature=opt.temp)
+
+    elif opt.encoding_type == 'crossentropy':
+        model = SupCEResNet(name=opt.model, num_classes=opt.n_cls, img_size=int(opt.img_size*0.875))
+        criterion = torch.nn.CrossEntropyLoss()
+
+    elif opt.encoding_type == 'autoencoding':
+        print("TODO(ali): Implement here")
+        raise NotImplementedError
 
     # enable synchronized Batch Normalization
     if opt.syncBN:
@@ -238,6 +247,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     data_time = AverageMeter()
     losses = AverageMeter()
 
+    top1 = AverageMeter()
     end = time.time()
 
     ## Ali: Todo: this data loading depends on if we generate positive on the fly or load them. if loading then we have data[0] and data[1]
@@ -246,30 +256,52 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
     for idx, data in enumerate(train_loader):
+        if len(data) == 2:
+            images = data[0]
+            labels = data[1]
+        elif len(data) == 3:
+            images = data[:2]
+            labels = data[2]
+        else:
+            raise NotImplementedError
+        
         data_time.update(time.time() - end)
-        images = [data[0], data[1]]
-        labels = data[2]
-        images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
-                           dim=1)
-        # print('2) images shape', images.shape)
+        if opt.encoding_type != 'contrastive':
+            # We only pick one of images
+            images = images[1]
+        else:
+            images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
+                               dim=1)
+            # print('2) images shape', images.shape)
 
-        images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
-        # print('3) images shape', images.shape)
+            images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
+            # print('3) images shape', images.shape)
 
         labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
         # warm-up learning rate
         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
         # compute loss
-        features = model(images)
-        features = features.view(bsz, 2, -1)
-        if opt.method == 'SupCon':
-            loss = criterion(features, labels)
-        elif opt.method == 'SimCLR':
-            loss = criterion(features)
+
+
+        if opt.encoding_type == 'contrastive':
+            features = model(images)
+            features = features.view(bsz, 2, -1)
+            if opt.method == 'SupCon':
+                loss = criterion(features, labels)
+            elif opt.method == 'SimCLR':
+                loss = criterion(features)
+            else:
+                raise ValueError('contrastive method not supported: {}'.
+                                 format(opt.method))
+        elif opt.encoding_type == 'crossentropy':
+            output = model(images)
+            loss = criterion(output, labels)
+            acc1, acc5 = accuracy(output, labels, topk=(1, 5))
+            top1.update(acc1[0], bsz)
         else:
-            raise ValueError('contrastive method not supported: {}'.
-                             format(opt.method))
+            raise NotImplementedError
+
 
         # update metric
         losses.update(loss.item(), bsz)
@@ -285,15 +317,28 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
 
         # print info
         if (idx + 1) % opt.print_freq == 0:
-            print('Train: [{0}][{1}/{2}]\t'
-                  'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'loss {loss.val:.3f} ({loss.avg:.3f})'.format(
-                   epoch, idx + 1, len(train_loader), batch_time=batch_time,
-                   data_time=data_time, loss=losses))
+            if opt.encoding_type == 'crossentropy':
+                print('Train: [{0}][{1}/{2}]\t'
+                      'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'loss {loss.val:.3f} ({loss.avg:.3f})\t'
+                      'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
+                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
+                       data_time=data_time, loss=losses, top1=top1))
+            else:
+                print('Train: [{0}][{1}/{2}]\t'
+                      'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'loss {loss.val:.3f} ({loss.avg:.3f})'.format(
+                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
+                       data_time=data_time, loss=losses))
             sys.stdout.flush()
+    other_metrics = {}
 
-    return losses.avg
+    if opt.encoding_type == 'crossentropy':
+        other_metrics['top1_acc'] = top1.avg
+
+    return losses.avg, other_metrics
 
 
 def main():
@@ -322,13 +367,15 @@ def main():
 
         # train for one epoch
         time1 = time.time()
-        loss = train(train_loader, model, criterion, optimizer, epoch, opt)
+        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
         # tensorboard logger
         logger.log_value('loss', loss, epoch)
         logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
+        for metric_name, metric_value in other_metrics.items():
+            logger.log_values(metric_name, metric_value)
 
         if epoch % opt.save_freq == 0:
             save_file = os.path.join(
