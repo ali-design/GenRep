@@ -98,9 +98,9 @@ def parse_option():
         opt.lr_decay_epochs.append(int(it))
 
     if opt.ganrndwalk:
-        if opts.walktype == 'gaussian':
-            walk_type = 'ztsd_{}'.format(opt.ztsd)
-        elif opts.walktype == 'uniform':
+        if opt.walktype == 'gaussian':
+            walk_type = 'zstd_{}'.format(opt.zstd)
+        elif opt.walktype == 'uniform':
             walk_type = 'uniform_{}'.format(opt.uniformb)
 
         opt.model_name = '{}_{}_ganrndwalk_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
@@ -116,10 +116,10 @@ def parse_option():
             format(opt.method, opt.dataset, opt.model, opt.learning_rate,
                 opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
-    opt.model_name = '{}_{}'.format(opt.model_name, os.path.basename(opt.data_folder))
     if opt.cosine:
         opt.model_name = '{}_cosine'.format(opt.model_name)
 
+    opt.model_name = '{}_{}'.format(opt.model_name, os.path.basename(opt.data_folder))
     # warm-up for large-batch training,
     if opt.batch_size > 256:
         opt.warm = True
