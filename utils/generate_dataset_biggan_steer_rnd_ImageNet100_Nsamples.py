@@ -15,6 +15,7 @@ import os
 import argparse
 from tqdm import tqdm
 import json
+import pickle
 from scipy.stats import truncnorm
 
 def convert_to_images(obj):
@@ -45,6 +46,7 @@ def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., see
     state = None if seed is None else np.random.RandomState(seed)
     values = truncnorm.rvs(-2, 2, size=(batch_size, dim_z), random_state=state).astype(np.float32)
     zs = truncation * values
+    list_results.append(zs) # these are anchors
 
     state_neighbors = None if seed is None else np.random.RandomState(seed+1000)
     for i in range(num_neighbors):
@@ -72,6 +74,8 @@ def sample(opt):
     model = BigGAN.from_pretrained(model_name).cuda()
     
     list100 = os.listdir('/data/scratch-oc40/jahanian/ganclr_results/ImageNet100/train')
+    
+    z_dict = dict()
 
     for key in imagenet_class_index_keys:
         if imagenet_class_index_dict[key][0] not in list100:
@@ -97,8 +101,14 @@ def sample(opt):
                 output = output.cpu()
                 ims = convert_to_images(output)
                 for i, im in enumerate(ims):
-                    im_name = 'seed%04d_sample%05d_1.0_%d.%s' % (seed, batch_start+i, ii, imformat)
+                    if ii == 0: #anchors
+                        im_name = 'seed%04d_sample%05d_anchor.%s' % (seed, batch_start+i, imformat)
+                    else:
+                        im_name = 'seed%04d_sample%05d_1.0_%d.%s' % (seed, batch_start+i, ii, imformat)
                     im.save(os.path.join(class_dir_name, im_name))
+                    z_dict[im_name] = noise_vector[i]
+        with open(os.path.join(class_dir_name, 'z_dataset.pkl'), 'wb') as fid:
+            pickle.dump(z_dict,fid)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Sample from biggan")
@@ -108,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--size', default=256, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--imformat', default='png', type=str)
-    parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
+    parser.add_argument('--num_imgs', default=2, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
     parser.add_argument('--num_neighbors', default=20, type=int, help='num samples per anchor')
     parser.add_argument('--desc', default='steer_rnd_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
