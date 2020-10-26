@@ -4,6 +4,7 @@ you will need to pip install pytorch_pretrained_biggan, see https://github.com/h
 '''
 
 import torch
+import tqdm
 from pytorch_pretrained_biggan import (
     BigGAN,
     truncated_noise_sample,
@@ -69,18 +70,21 @@ def sample(opt):
     batch_size = opt.batch_size
     with open('./imagenet_class_index.json', 'rb') as fid:
         imagenet_class_index_dict = json.load(fid)
-    imagenet_class_index_keys = imagenet_class_index_dict.keys()
+    imagenet_class_index_keys = list(imagenet_class_index_dict.keys())
     print('Loading the model ...')
     model = BigGAN.from_pretrained(model_name).cuda()
     
     list100 = os.listdir('/data/scratch-oc40/jahanian/ganclr_results/ImageNet100/train')
     
     z_dict = dict()
-
-    for key in imagenet_class_index_keys:
+    import random
+    random.shuffle(imagenet_class_index_keys)
+    for key in tqdm(imagenet_class_index_keys):
         if imagenet_class_index_dict[key][0] not in list100:
             continue
         class_dir_name = os.path.join(output_path, partition, imagenet_class_index_dict[key][0])
+        if os.path.isdir(class_dir_name):
+            continue
         os.makedirs(class_dir_name, exist_ok=True)
         idx = int(key)
         print('Generating images for class {}'.format(idx))
