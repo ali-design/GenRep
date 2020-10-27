@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--size', default=256, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--imformat', default='png', type=str)
-    parser.add_argument('--num_imgs', default=2, type=int, help='num imgs per class')
+    parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
     parser.add_argument('--num_neighbors', default=20, type=int, help='num samples per anchor')
     parser.add_argument('--desc', default='steer_rnd_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
