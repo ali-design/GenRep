@@ -146,7 +146,7 @@ def parse_option():
 
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         # or 256 as you like
-        opt.img_size = 128
+        opt.img_size = 256
     elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
         opt.img_size = 32
 
