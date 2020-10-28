@@ -16,6 +16,7 @@ from util import adjust_learning_rate, warmup_learning_rate
 from util import set_optimizer, save_model
 from networks.resnet_big import SupConResNet
 from losses import SupConLoss
+import oyaml as yaml
 
 try:
     import apex
@@ -343,6 +344,9 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
 
 def main():
     opt = parse_option()
+
+    with open(os.path.join(opt.save_folder, 'optE.yml'), 'w') as f:
+        yaml.dump(vars(opt), f, default_flow_style=False)
 
     # build data loader
     # opt.encoding_type tells us how to get training data
