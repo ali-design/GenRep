@@ -33,7 +33,7 @@ def convert_to_images(obj):
         img.append(PIL.Image.fromarray(out_array))
     return img
 
-def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., seed=None, num_neighbors=20):
+def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., seed=None, num_neighbors=20, scale=1.0):
     """ Create a truncated noise vector.
         Params:
             batch_size: batch size.
@@ -52,8 +52,12 @@ def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., see
     state_neighbors = None if seed is None else np.random.RandomState(seed+1000)
     for i in range(num_neighbors):
         state_neighbors = None if seed is None else np.random.RandomState(seed+1000+i)
-        values_neighbors = truncation * truncnorm.rvs(-2, 2, size=(batch_size, dim_z), scale=2.0, random_state=state_neighbors).astype(np.float32)
-        list_results.append(zs + values_neighbors)
+        values_neighbors = truncation * truncnorm.rvs(-2, 2, size=(batch_size, dim_z), scale=scale, random_state=state_neighbors).astype(np.float32)
+        zs_norm = np.linalg.norm(zs)
+        zs_new = zs + values_neighbors
+        zs_angular = zs_norm * zs_new/np.linalg.norm(zs_new)
+#         print('z_new.shape, zs_angular.shape:', zs_new.shape, zs_angular.shape)
+        list_results.append(zs_angular)
 
     return list_results
 
@@ -124,7 +128,8 @@ if __name__ == '__main__':
     parser.add_argument('--imformat', default='png', type=str)
     parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
+    parser.add_argument('--scale', default=1.0, type=int, help='scale of std')
     parser.add_argument('--num_neighbors', default=20, type=int, help='num samples per anchor')
-    parser.add_argument('--desc', default='steer_rnd_std2.0_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
+    parser.add_argument('--desc', default='rnd_gauss_angular-std1.0_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
     opt = parser.parse_args()
     sample(opt)

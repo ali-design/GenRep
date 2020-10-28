@@ -35,15 +35,15 @@ def make_html(home_dir):
                         anchor_file_name + '"/></a></td>')
                 for j in range(len(std_list)):
                     if std_list[j] == '1':
-                        std_file_name = anchor_file_name.replace('anchor', '1._1')
+                        std_file_name = anchor_file_name.replace('anchor', '1.0_1')
                     elif std_list[j] == '2':
-                        std_file_name = anchor_file_name.replace('anchor', '1._2')
+                        std_file_name = anchor_file_name.replace('anchor', '1.0_2')
                     elif std_list[j] == '3':
-                        std_file_name = anchor_file_name.replace('anchor', '1._3')
+                        std_file_name = anchor_file_name.replace('anchor', '1.0_3')
                     elif std_list[j] == '4':
-                        std_file_name = anchor_file_name.replace('anchor', '1._4')
+                        std_file_name = anchor_file_name.replace('anchor', '1.0_4')
                     elif std_list[j] == '5':
-                        std_file_name = anchor_file_name.replace('anchor', '1._5')
+                        std_file_name = anchor_file_name.replace('anchor', '1.0_5')
                         
                     fid.write('<td><a href="' + std_file_name + '"><img src="' +
                         std_file_name + '"/></a></td>')
@@ -53,4 +53,4 @@ def make_html(home_dir):
     finally:
         fid.close()
 
-make_html('/data/scratch/jahanian/ganclr_results_2/biggan256tr1-png_steer_rnd_100_5samples')
+make_html('/data/scratch/jahanian/ganclr_results_2/biggan256tr0.4-png_rnd_gauss_angular-std1.0_100_5_samples')
