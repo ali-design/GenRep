@@ -281,10 +281,10 @@ class OnlineGansetDataset(Dataset):
         return w, dw, one_hot_index, label
 
 
-class GansetDataset(datasets.ImageFolder):
+class GansetDataset(Dataset):
     """The idea is to load the anchor image and its neighbor"""
 
-    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None):
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None, numcontrast=5):
         """
         Args:
             neighbor_std: std in the z-space
@@ -293,7 +293,8 @@ class GansetDataset(datasets.ImageFolder):
                 on a sample.
             walktype: whether we are moving in a gaussian ball or a uniform ball
         """
-        super(GansetDataset, self).__init__(root_dir, transform, target_transform=None)
+        super(GansetDataset, self).__init__()
+        self.numcontrast = numcontrast
         self.neighbor_std = neighbor_std
         self.uniformb = uniformb
         self.root_dir = root_dir
@@ -306,6 +307,12 @@ class GansetDataset(datasets.ImageFolder):
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
 
+    def _find_classes(self, root_dir):
+        classes = glob.glob('{}/*'.format(root_dir))
+        classes = [x.split('/')[-1] for x in classes]
+        class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
+        return classes, class_to_idx
+
     def __len__(self):
         
         return self.dir_size
@@ -316,8 +323,8 @@ class GansetDataset(datasets.ImageFolder):
 
         img_name = self.imglist[idx]
         image = Image.open(img_name)
-        neighbor = random.randint(1,5)
-        img_name_neighbor = self.imglist[idx].replace('anchor','{}._{}'.format(str(int(self.neighbor_std)), str(neighbor)))
+        neighbor = random.randint(1,self.numcontrast)
+        img_name_neighbor = self.imglist[idx].replace('anchor','{:.1f}_{}'.format(self.neighbor_std, str(neighbor)))
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
@@ -334,7 +341,7 @@ class GansetDataset(datasets.ImageFolder):
         return image, image_neighbor, label
 
 
-class GansteerDataset(datasets.ImageFolder):
+class GansteerDataset(Dataset):
     """The idea is to load the negative-alpha image and its neighbor (positive-alpha)"""
 
     def __init__(self, root_dir, transform=None):
@@ -345,7 +352,7 @@ class GansteerDataset(datasets.ImageFolder):
                 on a sample.
         """
         print("Creating dataset: ", root_dir)
-        super(GansteerDataset, self).__init__(root_dir, transform, target_transform=None)
+        super(GansteerDataset, self).__init__()
         print("Done")
         self.root_dir = root_dir
         self.transform = transform

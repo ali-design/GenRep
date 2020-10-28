@@ -1,11 +1,13 @@
 from __future__ import print_function
 
+import numpy as np
 import os
 import sys
 import argparse
 import time
 import math
 
+import torchvision.utils as vutils
 import tensorboard_logger as tb_logger
 import torch
 import torch.backends.cudnn as cudnn
@@ -39,6 +41,7 @@ def parse_option():
                         help='num of workers to use')
     parser.add_argument('--epochs', type=int, default=200,
                         help='number of training epochs')
+    parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
 
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
@@ -59,11 +62,12 @@ def parse_option():
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
+    parser.add_argument('--numcontrast', type=int, default=20,
+                        help='num of workers to use')
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
     parser.add_argument('--ganrndwalk', action='store_true', help='augment by walking in the gan latent space')
-    parser.add_argument('--walktype', type=str, help='how should we random walk on latent space',
-                        choices=['gaussian', 'uniform'])
+    parser.add_argument('--walktype', type=str, help='how should we random walk on latent space')
     parser.add_argument('--zstd', type=float, default=1.0, help='augment std away from z')
     parser.add_argument('--ganzoomwalk', action='store_true', help='augment by steerability walk for rot3d')
 
@@ -100,24 +104,10 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    if opt.ganrndwalk:
-        if opt.walktype == 'gaussian':
-            walk_type = 'zstd_{}'.format(opt.zstd)
-        elif opt.walktype == 'uniform':
-            walk_type = 'uniform_{}'.format(opt.uniformb)
+    opt.model_name = '{}_{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.walktype, opt.model, opt.numcontrast, opt.learning_rate, 
+            opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
-        opt.model_name = '{}_{}_ganrndwalk_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, walktype, opt.model, opt.learning_rate, 
-                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
-    elif opt.ganzoomwalk:
-        opt.model_name = '{}_{}_ganzoomwalk_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.learning_rate, 
-                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
-
-    else: 
-        opt.model_name = '{}_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.learning_rate,
-                opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
     if opt.cosine:
         opt.model_name = '{}_cosine'.format(opt.model_name)
@@ -147,7 +137,7 @@ def parse_option():
 
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         # or 256 as you like
-        opt.img_size = 256
+        opt.img_size = 128
     elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
         opt.img_size = 32
 
@@ -168,6 +158,8 @@ def set_loader(opt):
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
     normalize = transforms.Normalize(mean=mean, std=std)
+    opt.mean = mean
+    opt.std = std
 
     train_transform = transforms.Compose([
         transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
@@ -194,11 +186,11 @@ def set_loader(opt):
     elif opt.dataset == 'biggan':
         if opt.ganrndwalk:
             train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        neighbor_std=opt.zstd, transform=train_transform)        
+                    neighbor_std=opt.zstd, transform=train_transform, numcontrast=opt.numcontrast)        
 
         elif opt.ganzoomwalk:
             train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        transform=train_transform)        
+                                        transform=train_transform, numcontrast=opt.numcontrast)        
         else:
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                         transform=TwoCropTransform(train_transform))
@@ -256,7 +248,9 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
 
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
+    print("Start train")
     for idx, data in enumerate(train_loader):
+
         if len(data) == 2:
             images = data[0]
             labels = data[1]
@@ -271,6 +265,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             # We only pick one of images
             images = images[1]
         else:
+            ims = images[0]
+            anchors = images[1]
             images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                                dim=1)
             # print('2) images shape', images.shape)
@@ -339,6 +335,9 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     if opt.encoding_type == 'crossentropy':
         other_metrics['top1_acc'] = top1.avg
 
+    if opt.showimg:
+        other_metrics['image'] = [ims[:8], anchors[:8]]
+
     return losses.avg, other_metrics
 
 
@@ -379,7 +378,20 @@ def main():
         logger.log_value('loss', loss, epoch)
         logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
         for metric_name, metric_value in other_metrics.items():
-            logger.log_values(metric_name, metric_value)
+            if metric_name == 'image':
+                images = metric_value
+                anchors = images[0]
+                otherims = images[1]
+                bs = anchors.shape[0]
+                grid_images = vutils.make_grid(
+                        torch.cat((anchors, otherims)), nrow=bs)
+                grid_images *= np.array(opt.std)[:, None, None]
+                grid_images += np.array(opt.mean)[:, None, None]
+                grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
+                grid_images = grid_images[None, :].transpose(0,2,3,1)
+                logger.log_images(metric_name, grid_images, epoch)
+            else:
+                logger.log_value(metric_name, metric_value, epoch)
 
         if epoch % opt.save_freq == 0:
             save_file = os.path.join(
