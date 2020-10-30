@@ -97,7 +97,7 @@ def sample(opt):
                                                         batch_size=nimg,
                                                         seed=seed, num_neighbors=opt.num_neighbors)
         class_vector = torch.from_numpy(class_vector).cuda()
-        for ii in range(len(noise_vector_neighbors)):
+        for ii in range(2, len(noise_vector_neighbors)):
             noise_vector = noise_vector_neighbors[ii]
             noise_vector = torch.from_numpy(noise_vector).cuda()
             for batch_start in range(0, nimg, batch_size):
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
     parser.add_argument('--scale', default=1.0, type=int, help='scale of std')
-    parser.add_argument('--num_neighbors', default=1, type=int, help='num samples per anchor')
+    parser.add_argument('--num_neighbors', default=20, type=int, help='num samples per anchor')
     parser.add_argument('--desc', default='rnd_indep', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
     opt = parser.parse_args()
     sample(opt)
