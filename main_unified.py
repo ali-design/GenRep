@@ -66,10 +66,7 @@ def parse_option():
                         help='num of workers to use')
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
-    parser.add_argument('--ganrndwalk', action='store_true', help='augment by walking in the gan latent space')
-    parser.add_argument('--walktype', type=str, help='how should we random walk on latent space')
-    parser.add_argument('--zstd', type=float, default=1.0, help='augment std away from z')
-    parser.add_argument('--ganzoomwalk', action='store_true', help='augment by steerability walk for rot3d')
+    parser.add_argument('--walk_method', type=str, choices=['none', 'random', 'steer', 'pca'], help='choose method')
 
     # temperature
     parser.add_argument('--temp', type=float, default=0.1,
@@ -104,8 +101,8 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.walktype, opt.model, opt.numcontrast, opt.learning_rate, 
+    opt.model_name = '{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
 
@@ -184,16 +181,17 @@ def set_loader(opt):
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                         transform=TwoCropTransform(train_transform))
     elif opt.dataset == 'biggan':
-        if opt.ganrndwalk:
+        if opt.walk_method == 'random':
             train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                    neighbor_std=opt.zstd, transform=train_transform, numcontrast=opt.numcontrast)        
+                                          transform=train_transform, numcontrast=opt.numcontrast)        
 
-        elif opt.ganzoomwalk:
+        elif opt.walk_method == 'steer':
             train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
                                         transform=train_transform, numcontrast=opt.numcontrast)        
-        else:
+        elif opt.walk_method == 'none':
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                         transform=TwoCropTransform(train_transform))
+        ## Ali: ToDo: elif opt.walk_method == 'pca'...
     else:
         raise ValueError(opt.dataset)
 
