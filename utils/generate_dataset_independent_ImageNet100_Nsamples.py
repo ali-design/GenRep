@@ -50,7 +50,7 @@ def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., see
     list_results.append(zs) # these are anchors
 
     state_neighbors = None if seed is None else np.random.RandomState(seed+1000)
-    diversity_seed = 10.
+    diversity_seed = 10
     for i in range(num_neighbors):
         state_neighbors = None if seed is None else np.random.RandomState(seed+1000+i*diversity_seed)
         values = truncnorm.rvs(-2, 2, size=(batch_size, dim_z), random_state=state).astype(np.float32)

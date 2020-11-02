@@ -324,13 +324,18 @@ class GansetDataset(Dataset):
 
         img_name = self.imglist[idx]
         image = Image.open(img_name)
+
         if self.numcontrast > 0:
             neighbor = random.randint(1,self.numcontrast)
             img_name_neighbor = self.imglist[idx].replace('anchor','{:.1f}_{}'.format(self.neighbor_std, str(neighbor)))
             if neighbor > 1:
                 img_name_neighbor = img_name_neighbor.replace('indep_1_samples', 'indep_20_samples')
+            if not os.path.isfile(img_name_neighbor):
+                img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format( str(neighbor)))
         else:
             img_name_neighbor = img_name
+
+
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
