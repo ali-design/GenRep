@@ -303,7 +303,8 @@ class GansetDataset(Dataset):
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
 
         # get list of anchor images
-        self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
+        extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
+        self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
 
@@ -323,8 +324,13 @@ class GansetDataset(Dataset):
 
         img_name = self.imglist[idx]
         image = Image.open(img_name)
-        neighbor = random.randint(1,self.numcontrast)
-        img_name_neighbor = self.imglist[idx].replace('anchor','{:.1f}_{}'.format(self.neighbor_std, str(neighbor)))
+        if self.numcontrast > 0:
+            neighbor = random.randint(1,self.numcontrast)
+            img_name_neighbor = self.imglist[idx].replace('anchor','{:.1f}_{}'.format(self.neighbor_std, str(neighbor)))
+            if neighbor > 1:
+                img_name_neighbor = img_name_neighbor.replace('indep_1_samples', 'indep_20_samples')
+        else:
+            img_name_neighbor = img_name
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
