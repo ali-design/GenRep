@@ -385,53 +385,17 @@ class GansteerDataset(Dataset):
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-
         img_name = self.imglist[idx]
-        # print('anchor image:', img_name)
         image = Image.open(img_name)
-
-#         ## for composite
-#         neighbor_names = ['palpha', 'nalpha']
-#         neighbor_choice = np.random.choice(neighbor_names)
-#         img_name_neighbor = self.imglist[idx].replace('anchor',neighbor_choice)
-
-        # for composite2
-        neighbor_names = ['palpha_R', 'palpha_G', 'palpha_B', 'palpha_W', 'palpha_D', 'nalpha_R', 'nalpha_G', 'nalpha_B', 'nalpha_W', 'nalpha_D']
-        random.shuffle(neighbor_names)
-        for i in range(len(neighbor_names)):            
-            neighbor_choice = neighbor_names[i]
-            img_name_neighbor = self.imglist[idx].replace('anchor',neighbor_choice)
-            if os.path.isfile(img_name_neighbor):
-                break
-                
-
-#         ## for zoom-rgb-max-alt
-#         coin = np.random.rand()
-#         if coin < 0.5:
-#             img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
-
-#         if (int(os.path.basename(self.imglist[idx]).split('_')[4].replace('sample', '')) % 2 ==0):
-#             img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
-#         else:
-#             img_name_neighbor = self.imglist[idx].replace('anchor','nalpha')
-
-#         # lets randomly switch to a steered color neighbor:
-#         coin = np.random.rand()
-#         # if coin < 0.66 and coin >= 0.33:
-#         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_color_100')
-#         # elif coin < 0.33:
-#         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_zoom_100')
-#         if coin < 0.5:
-#             color_list = ['W_sample', 'R_sample', 'G_sample', 'B_sample']
-#             color_choice = np.random.choice(color_list)
-#             img_name_neighbor = img_name_neighbor.replace('biggan256tr1-png_steer_zoom_100', 'biggan256tr1-png_steer_color_100')
-#             img_name_neighbor = img_name_neighbor.replace('sample', color_choice)
-
-#             if color_choice in ['R_sample', 'G_sample', 'B_sample'] and 'nalpha' in img_name_neighbor:
-#                 img_name_neighbor = img_name_neighbor.replace('nalpha', 'palpha')
-
-#         print('anchor, neighbor: ', img_name, img_name_neighbor)
-#         # print(os.path.exists(img_name_neighbor))
+        if self.numcontrast > 0:
+            neighbor = random.randint(1,self.numcontrast)
+            img_name_neighbor = self.imglist[idx].replace('anchor','{:.1f}_{}'.format(self.neighbor_std, str(neighbor)))
+            if neighbor > 1:
+                img_name_neighbor = img_name_neighbor.replace('indep_1_samples', 'indep_20_samples')
+            if not os.path.isfile(img_name_neighbor):
+                img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format( str(neighbor-1)))
+        else:
+            img_name_neighbor = img_name
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
@@ -444,5 +408,71 @@ class GansteerDataset(Dataset):
         if self.transform:
             image = self.transform(image)
             image_neighbor = self.transform(image_neighbor)
+        return image, image_neighbor, label    
+    
+    
+    
+#     def __getitem__(self, idx):
+#         if torch.is_tensor(idx):
+#             idx = idx.tolist()
 
-        return image, image_neighbor, label
+#         img_name = self.imglist[idx]
+#         # print('anchor image:', img_name)
+#         image = Image.open(img_name)
+
+# #         ## for composite
+# #         neighbor_names = ['palpha', 'nalpha']
+# #         neighbor_choice = np.random.choice(neighbor_names)
+# #         img_name_neighbor = self.imglist[idx].replace('anchor',neighbor_choice)
+
+#         # for composite2
+#         neighbor_names = ['palpha_R', 'palpha_G', 'palpha_B', 'palpha_W', 'palpha_D', 'nalpha_R', 'nalpha_G', 'nalpha_B', 'nalpha_W', 'nalpha_D']
+#         random.shuffle(neighbor_names)
+#         for i in range(len(neighbor_names)):            
+#             neighbor_choice = neighbor_names[i]
+#             img_name_neighbor = self.imglist[idx].replace('anchor',neighbor_choice)
+#             if os.path.isfile(img_name_neighbor):
+#                 break
+                
+
+# #         ## for zoom-rgb-max-alt
+# #         coin = np.random.rand()
+# #         if coin < 0.5:
+# #             img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
+
+# #         if (int(os.path.basename(self.imglist[idx]).split('_')[4].replace('sample', '')) % 2 ==0):
+# #             img_name_neighbor = self.imglist[idx].replace('anchor','palpha')
+# #         else:
+# #             img_name_neighbor = self.imglist[idx].replace('anchor','nalpha')
+
+# #         # lets randomly switch to a steered color neighbor:
+# #         coin = np.random.rand()
+# #         # if coin < 0.66 and coin >= 0.33:
+# #         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_color_100')
+# #         # elif coin < 0.33:
+# #         #     img_name_neighbor.replace('biggan256tr1-png_steer_rot3d_100', 'biggan256tr1-png_steer_zoom_100')
+# #         if coin < 0.5:
+# #             color_list = ['W_sample', 'R_sample', 'G_sample', 'B_sample']
+# #             color_choice = np.random.choice(color_list)
+# #             img_name_neighbor = img_name_neighbor.replace('biggan256tr1-png_steer_zoom_100', 'biggan256tr1-png_steer_color_100')
+# #             img_name_neighbor = img_name_neighbor.replace('sample', color_choice)
+
+# #             if color_choice in ['R_sample', 'G_sample', 'B_sample'] and 'nalpha' in img_name_neighbor:
+# #                 img_name_neighbor = img_name_neighbor.replace('nalpha', 'palpha')
+
+# #         print('anchor, neighbor: ', img_name, img_name_neighbor)
+# #         # print(os.path.exists(img_name_neighbor))
+#         image_neighbor = Image.open(img_name_neighbor)
+#         label = self.imglist[idx].split('/')[-2]
+#         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
+#         #     imagenet_class_index_dict = json.load(fid)
+#         # for key, value in imagenet_class_index_dict.items():
+#         #     if value[0] == label:
+#         #         label = key
+#         #         break
+#         label = self.class_to_idx[label]
+#         if self.transform:
+#             image = self.transform(image)
+#             image_neighbor = self.transform(image_neighbor)
+
+#         return image, image_neighbor, label
