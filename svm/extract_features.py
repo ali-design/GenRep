@@ -65,6 +65,8 @@ def parse_option():
     parser.add_argument('--warm', action='store_true',
                         help='warm-up for large batch training')
 
+    parser.add_argument('--model_weight', type=str, default='ckpt',
+                        choices=['ckpt', 'scratch', 'pretrained'])
     parser.add_argument('--ckpt', type=str, default='',
                         help='path to pre-trained model')
 
@@ -205,7 +207,12 @@ def set_loader(opt):
 
 
 def set_model(opt):
-    model = SupConResNet(name=opt.model, img_size=opt.img_size)
+    if opt.model_weight != 'pretrained':
+        model = SupConResNet(name=opt.model, img_size=opt.img_size)
+    else:
+        if opt.model_weight == 'scratch':
+            pass
+
     if opt.dataset == 'voc2007':
         criterion = torch.nn.BCEWithLogitsLoss()
     else:
@@ -213,24 +220,27 @@ def set_model(opt):
 
     classifier = LinearClassifier(name=opt.model, num_classes=opt.n_cls)
 
-    ckpt = torch.load(opt.ckpt, map_location='cpu')
-    state_dict = ckpt['model']
+    
+    if opt.model_weight == 'ckpt':
+        ckpt = torch.load(opt.ckpt, map_location='cpu')
+        state_dict = ckpt['model']
 
     if torch.cuda.is_available():
         if torch.cuda.device_count() > 1:
             model.encoder = torch.nn.DataParallel(model.encoder)
         else:
-            new_state_dict = {}
-            for k, v in state_dict.items():
-                k = k.replace("module.", "")
-                new_state_dict[k] = v
-            state_dict = new_state_dict
+            if opt.model_weight == 'ckpt':
+                new_state_dict = {}
+                for k, v in state_dict.items():
+                    k = k.replace("module.", "")
+                    new_state_dict[k] = v
+                state_dict = new_state_dict
         model = model.cuda()
         classifier = classifier.cuda()
         criterion = criterion.cuda()
         cudnn.benchmark = True
-
-        model.load_state_dict(state_dict, strict=False)
+        if opt.model_weight == 'ckpt':
+            model.load_state_dict(state_dict, strict=False)
 
     return model, classifier, criterion
 

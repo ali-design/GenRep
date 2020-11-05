@@ -304,12 +304,16 @@ class GansetDataset(Dataset):
 
         # get list of anchor images
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
+        print("Listing images...")
         self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
+        #indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
+        #self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
 
     def _find_classes(self, root_dir):
         classes = glob.glob('{}/*'.format(root_dir))
+        print(root_dir)
         classes = [x.split('/')[-1] for x in classes]
         class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
         return classes, class_to_idx
@@ -331,7 +335,7 @@ class GansetDataset(Dataset):
             if neighbor > 1:
                 img_name_neighbor = img_name_neighbor.replace('indep_1_samples', 'indep_20_samples')
             if not os.path.isfile(img_name_neighbor):
-                img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format( str(neighbor)))
+                img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format( str(neighbor-1)))
         else:
             img_name_neighbor = img_name
 

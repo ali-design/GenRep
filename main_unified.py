@@ -14,9 +14,9 @@ import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
 from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
-from util import adjust_learning_rate, warmup_learning_rate
+from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from util import set_optimizer, save_model
-from networks.resnet_big import SupConResNet
+from networks.resnet_big import SupConResNet, SupCEResNet
 from losses import SupConLoss
 import oyaml as yaml
 
@@ -93,8 +93,13 @@ def parse_option():
 
     # set the path according to the environment
     opt.data_folder = opt.data_folder
-    opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
-    opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
+    if opt.encoding_type == 'crossentropy':
+        opt.method = 'SupCE'
+        opt.model_path = os.path.join(opt.cache_folder, 'SupCE/{}_models'.format(opt.dataset))
+        opt.tb_path = os.path.join(opt.cache_folder, 'SupCE/{}_tensorboard'.format(opt.dataset))
+    else:
+        opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
+        opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
@@ -135,6 +140,7 @@ def parse_option():
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         # or 256 as you like
         opt.img_size = 128
+        opt.n_cls = 1000
     elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
         opt.img_size = 32
 
@@ -332,9 +338,9 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
 
     if opt.encoding_type == 'crossentropy':
         other_metrics['top1_acc'] = top1.avg
-
-    if opt.showimg:
-        other_metrics['image'] = [ims[:8], anchors[:8]]
+    else:
+        if opt.showimg:
+            other_metrics['image'] = [ims[:8], anchors[:8]]
 
     return losses.avg, other_metrics
 
