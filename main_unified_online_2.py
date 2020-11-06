@@ -1,19 +1,11 @@
 from __future__ import print_function
 
-
-import numpy as np
-import pdb
-from multiprocessing import Pool
-import functools
-
-
 import numpy as np
 import os
 import sys
 import argparse
 import time
 import math
-from PIL import Image
 
 import torchvision.utils as vutils
 import tensorboard_logger as tb_logger
@@ -21,13 +13,28 @@ import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
-from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset, OnlineDataset
-from util import adjust_learning_rate, warmup_learning_rate, accuracy
+from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
+from util import adjust_learning_rate, warmup_learning_rate
 from util import set_optimizer, save_model
-from networks.resnet_big import SupConResNet, SupCEResNet
+from networks.resnet_big import SupConResNet
 from losses import SupConLoss
 import oyaml as yaml
 import pbar as pbar
+
+
+import io
+import IPython.display
+import PIL.Image
+from pprint import pformat
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+import tensorflow_hub as hub
+from scipy.stats import truncnorm
+import utils_bigbigan as ubigbi
+from tqdm import tqdm
+import json
+import pickle
+
 
 try:
     import apex
@@ -36,43 +43,12 @@ except ImportError:
     pass
 
 
-def getitem(idx, root_dir, transform, class_to_idx, numcontrast=0):
-    if torch.is_tensor(idx):
-        idx = idx.tolist()
-
-    img_name = '{}/{}_anchor'.format(root_dir, idx)
-
-    if numcontrast > 0:
-        img_name_neighbor = img_name.replace('anchor','neighbor')
-    else:
-        img_name_neighbor = img_name
-   
-    while not os.path.isfile(img_name) or not os.path.isfile(img_name_neighbor):
-        print("Image {} missing ".format(img_name))
-        time.sleep(2)
-
-
-    image = Image.open(img_name)
-    image_neighbor = Image.open(img_name_neighbor)
-    label = img_name.split('/')[-2]
-    label = class_to_idx[label]
-    if transform:
-        image = transform(image)
-        image_neighbor = transform(image_neighbor)
-
-    return image, image_neighbor, label
-
-=======
->>>>>>> 0c8c9108f080fd28b5bcef9c7e0c39e06fedb243
 def parse_option():
     parser = argparse.ArgumentParser('argument for training')
     parser.add_argument('--encoding_type', type=str, default='contrastive',
                         choices=['contrastive', 'crossentropy', 'autoencoding'])
     parser.add_argument('--print_freq', type=int, default=10,
                         help='print frequency')
-
-    parser.add_argument('--numiter', type=int, default=130000,
-                        help='save frequency')
     parser.add_argument('--save_freq', type=int, default=20,
                         help='save frequency')
     parser.add_argument('--batch_size', type=int, default=256,
@@ -82,7 +58,7 @@ def parse_option():
     parser.add_argument('--epochs', type=int, default=200,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
-    parser.add_argument('--resume', default='', type=str, help='whether to resume training')
+    parser.add_argument('--niter', type=int, default=256, help='number of iter for online sampling')
 
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
@@ -107,7 +83,7 @@ def parse_option():
                         help='num of workers to use')
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
-    parser.add_argument('--walk_method', type=str, help='choose method')
+    parser.add_argument('--walk_method', type=str, choices=['none', 'random', 'steer', 'pca'], help='choose method')
 
     # temperature
     parser.add_argument('--temp', type=float, default=0.1,
@@ -134,21 +110,16 @@ def parse_option():
 
     # set the path according to the environment
     opt.data_folder = opt.data_folder
-    if opt.encoding_type == 'crossentropy':
-        opt.method = 'SupCE'
-        opt.model_path = os.path.join(opt.cache_folder, 'SupCE/{}_models'.format(opt.dataset))
-        opt.tb_path = os.path.join(opt.cache_folder, 'SupCE/{}_tensorboard'.format(opt.dataset))
-    else:
-        opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
-        opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
+    opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
+    opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}online_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
+    opt.model_name = '{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
 
@@ -180,8 +151,7 @@ def parse_option():
 
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         # or 256 as you like
-        opt.img_size = 256
-        opt.n_cls = 1000
+        opt.img_size = 128
     elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
         opt.img_size = 32
 
@@ -216,8 +186,44 @@ def set_loader(opt):
         normalize,
     ])
 
-    train_dataset = OnlineDataset(root_dir=os.path.join(opt.data_folder, 'train'), transform=train_transform, numcontrast=opt.numcontrast)
-    return train_dataset
+    if opt.dataset == 'cifar10':
+        train_dataset = datasets.CIFAR10(root=opt.data_folder,
+                                         transform=TwoCropTransform(train_transform),
+                                         download=True)
+    elif opt.dataset == 'cifar100':
+        train_dataset = datasets.CIFAR100(root=opt.data_folder,
+                                          transform=TwoCropTransform(train_transform),
+                                          download=True)
+    elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+                                        transform=TwoCropTransform(train_transform))
+    elif opt.dataset == 'biggan':
+        if opt.walk_method == 'random':
+            train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+                                          transform=train_transform, numcontrast=opt.numcontrast)        
+
+        elif opt.walk_method == 'steer':
+            train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+                                        transform=train_transform, numcontrast=opt.numcontrast)        
+        elif opt.walk_method == 'none':
+            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+                                        transform=TwoCropTransform(train_transform))
+        elif opt.walk_method == 'online':
+            train_loader_online = training_loader(truncation=1.0, batch_size=opt.batch_size, global_seed= 0)#opt.seed)
+
+        ## Ali: ToDo: elif opt.walk_method == 'pca'...
+    else:
+        raise ValueError(opt.dataset)
+
+    if opt.walk_method == 'online':
+        return train_loader_online
+    else:    
+        train_sampler = None
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=opt.batch_size, shuffle=(train_sampler is None),
+            num_workers=opt.num_workers, pin_memory=True, sampler=train_sampler)
+
+        return train_loader
 
 
 def set_model(opt):
@@ -247,7 +253,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt, pool):
+def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
     """one epoch training"""
     model.train()
 
@@ -263,56 +269,68 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, pool):
 
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
+    module_path = 'https://tfhub.dev/deepmind/bigbigan-resnet50/1'  # ResNet-50
+
+    module = hub.Module(module_path)  # inference
+    bigbigan = ubigbi.BigBiGAN(module)
+    opt.niter = 130000
     print("Start train")
-    index_total = (epoch-1) * opt.numiter
-    index_batch = 0
+    # for idx, data in enumerate(train_loader):
+    for batch_num in range(opt.niter // opt.batch_size):
+        idx = batch_num
+        # Make input placeholders for z (`gen_ph`).
+        gen_ph = bigbigan.make_generator_ph()
+        # Compute samples G(z) from encoder input z (`gen_ph`).
+        gen_samples = bigbigan.generate(gen_ph)
+        ## Create a TensorFlow session and initialize variables
+        init = tf.global_variables_initializer()
+        sess = tf.Session()
+        sess.run(init)
 
+        images = []
 
-    func_pool = functools.partial(getitem,
-                root_dir=train_loader.root_dir, 
-                transform=train_loader.transform, 
-                class_to_idx=train_loader.class_to_idx)
+        seed = start_seed + 1
+        state = None if seed is None else np.random.RandomState(seed)
+        noise_anchor = truncnorm.rvs(-2, 2, size=(opt.batch_size, 120), random_state=state).astype(np.float32)
+        feed_dict = {gen_ph: noise_anchor}
+        anchor_out = sess.run(gen_samples, feed_dict=feed_dict)
+        # ims = ubigbi.image_to_uint8(anchor_out) <== for good for showing images
+        # already in [-1,1[, now crop to 112 and bs,c,h,w send to gpu
+        # anchor_out = tf.image.resize_images(anchor_out, (int(opt.img_size*0.875), int(opt.img_size*0.875)))
+        # anchor_out = tf.transpose(anchor_out, perm=[0, 3, 1, 2])
+        # anchor_out = tf.make_ndarray(anchor_out)
+        anchor_out = np.transpose(anchor_out, (0, 3, 1, 2))
+        anchor_out = anchor_out[:,:,0:112, 0:112]
+        ims = torch.tensor(anchor_out, dtype=torch.float32, device='cuda') #<== might need to manage between TF and those used for encoder
+        images.append(ims)
 
-
-    while index_batch < opt.numiter:
-        im_indices = [i+index_total for i in range(opt.batch_size)]
-        data = pool.map(func_pool, im_indices)
-        index_batch += opt.batch_size
-        index_total += opt.batch_size
-        pdb.set_trace()
-=======
-    start_ep = 0
-    # if loading from ckpt: Ali todo
-    #     start_ep = checkpoint['epoch'] + 1
-    
-    epoch_batches = 1600 // opt.batch_size
-    for epoch, epoch_loader in enumerate(pbar(
-        epoch_grouper(train_loader, epoch_batches),
-        total=(opt.niter-start_ep)), start_ep):
-
-        # stopping condition
-        if epoch > opt.niter:
-            break
-
-        # run a train epoch of epoch_batches batches
-        for step, (z_batch,) in enumerate(pbar(
-            epoch_loader, total=epoch_batches), 1):
-            
-        # now get z_batch as if it's your data
-
-
-
-    for idx, data in enumerate(train_loader):
->>>>>>> 0c8c9108f080fd28b5bcef9c7e0c39e06fedb243
-
-        if len(data) == 2:
-            images = data[0]
-            labels = data[1]
-        elif len(data) == 3:
-            images = data[:2]
-            labels = data[2]
-        else:
-            raise NotImplementedError
+        seed = start_seed + 2
+        state = None if seed is None else np.random.RandomState(seed)
+        noise_anchor = truncnorm.rvs(-2, 2, size=(opt.batch_size, 120), random_state=state).astype(np.float32)
+        feed_dict = {gen_ph: noise_anchor}
+        anchor_out = sess.run(gen_samples, feed_dict=feed_dict)
+        # ims = ubigbi.image_to_uint8(anchor_out) <== for good for showing images
+        # already in [-1,1[, now crop to 112 and bs,c,h,w send to gpu
+        # anchor_out = tf.image.resize_images(anchor_out, (int(opt.img_size*0.875), int(opt.img_size*0.875)))
+        # anchor_out = tf.transpose(anchor_out, perm=[0, 3, 1, 2])
+        # anchor_out = tf.make_ndarray(anchor_out)
+        anchor_out = np.transpose(anchor_out, (0, 3, 1, 2))
+        anchor_out = anchor_out[:,:,0:112, 0:112]
+        ims = torch.tensor(anchor_out, dtype=torch.float32, device='cuda') #<== might need to manage between TF and those used for encoder
+        images.append(ims)
+        
+        labels = torch.randint(1000, size=(opt.batch_size, ), device='cuda') #<== might need to manage between TF and those used for encoder
+        
+        # data=[]
+        # labels=[]
+        # if len(data) == 2:
+        #     images = data[0]
+        #     labels = data[1]
+        # elif len(data) == 3:
+        #     images = data[:2]
+        #     labels = data[2]
+        # else:
+        #     raise NotImplementedError
         
         data_time.update(time.time() - end)
         if opt.encoding_type != 'contrastive':
@@ -365,7 +383,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, pool):
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
-
+        print('time spent per batch:', batch_time.avg)
         # print info
         if (idx + 1) % opt.print_freq == 0:
             if opt.encoding_type == 'crossentropy':
@@ -388,12 +406,11 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, pool):
 
     if opt.encoding_type == 'crossentropy':
         other_metrics['top1_acc'] = top1.avg
-    else:
-        if opt.showimg:
-            other_metrics['image'] = [ims[:8], anchors[:8]]
+
+    if opt.showimg:
+        other_metrics['image'] = [ims[:8], anchors[:8]]
 
     return losses.avg, other_metrics
-
 
 def training_loader(truncation, batch_size, global_seed=0):
     '''
@@ -432,7 +449,6 @@ def epoch_grouper(loader, epoch_size, num_epochs=None):
         epoch += 1
         if num_epochs is not None and epoch >= num_epochs:
             return
->>>>>>> 0c8c9108f080fd28b5bcef9c7e0c39e06fedb243
 
 def main():
     opt = parse_option()
@@ -458,20 +474,12 @@ def main():
     logger = tb_logger.Logger(logdir=opt.tb_folder, flush_secs=2)
 
     # training routine
-    init_epoch = 1
-    if len(opt.resume) > 0:
-        model_ckp = torch.load(opt.resume)
-        init_epoch = model_ckp['epoch'] + 1
-        model.load_state_dict(model_ckp['model'])
-        optimizer.load_state_dict(model_ckp['optimizer'])
-    pool = Pool(processes=opt.num_workers)
-
-    for epoch in range(init_epoch, opt.epochs + 1):
+    for epoch in range(1, opt.epochs + 1):
         adjust_learning_rate(opt, optimizer, epoch)
 
         # train for one epoch
         time1 = time.time()
-        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt, pool)
+        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt, start_seed=0)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 

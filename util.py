@@ -414,7 +414,7 @@ class GansetDataset(Dataset):
 class GansteerDataset(Dataset):
     """The idea is to load the negative-alpha image and its neighbor (positive-alpha)"""
 
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, numcontrast=5):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -424,10 +424,11 @@ class GansteerDataset(Dataset):
         print("Creating dataset: ", root_dir)
         super(GansteerDataset, self).__init__()
         print("Done")
+        self.numcontrast = numcontrast
         self.root_dir = root_dir
         self.transform = transform
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
-
+        
         # get list of nalpha images
         self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
         print("Loading data...")
@@ -436,6 +437,12 @@ class GansteerDataset(Dataset):
         self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
+        
+    def _find_classes(self, root_dir):
+        classes = glob.glob('{}/*'.format(root_dir))
+        classes = [x.split('/')[-1] for x in classes]
+        class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
+        return classes, class_to_idx        
 
     def __len__(self):
         
@@ -448,13 +455,14 @@ class GansteerDataset(Dataset):
         image = Image.open(img_name)
         if self.numcontrast > 0:
             neighbor = random.randint(1,self.numcontrast)
-            img_name_neighbor = self.imglist[idx].replace('anchor','{:.1f}_{}'.format(self.neighbor_std, str(neighbor)))
-            if neighbor > 1:
-                img_name_neighbor = img_name_neighbor.replace('indep_1_samples', 'indep_20_samples')
-            if not os.path.isfile(img_name_neighbor):
-                img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format( str(neighbor-1)))
+            img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format(str(neighbor-1)))
+            #if neighbor > 1:
+            #    img_name_neighbor = img_name_neighbor.replace('indep_1_samples', 'indep_20_samples')
+            #if not os.path.isfile(img_name_neighbor):
+            #    img_name_neighbor = self.imglist[idx].replace('anchor','neighbor_{}'.format( str(neighbor-1)))
         else:
             img_name_neighbor = img_name
+       # print('anchor, neighbor', img_name, img_name_neighbor)
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
         # with open('./utils/imagenet_class_index.json', 'rb') as fid:
