@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import ipdb
+import pdb
 import math
 import numpy as np
 import torch
@@ -279,6 +279,61 @@ class OnlineGansetDataset(Dataset):
 
 
         return w, dw, one_hot_index, label
+
+
+class OnlineDataset():
+    """The idea is to load the anchor image and its neighbor"""
+
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None, numcontrast=5):
+        """
+        Args:
+            neighbor_std: std in the z-space
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+            walktype: whether we are moving in a gaussian ball or a uniform ball
+        """
+        self.numcontrast = numcontrast
+        self.neighbor_std = neighbor_std
+        self.uniformb = uniformb
+        self.root_dir = root_dir
+        self.transform = transform
+        self.walktype = walktype
+        self.classes, self.class_to_idx = self._find_classes(self.root_dir)
+
+    
+    def _find_classes(self, root_dir):
+        classes = glob.glob('{}/*'.format(root_dir))
+        classes = [x.split('/')[-1] for x in classes]
+        class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
+        return classes, class_to_idx
+
+
+    def getitem(idx, root_dir=None, transform=None, class_to_idx={}, numcontrast=0):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_name = '{}/{}_anchor'.format(root_dir, idx)
+
+        if numcontrast > 0:
+            img_name_neighbor = img_name.replace('anchor','neighbor')
+        else:
+            img_name_neighbor = img_name
+       
+        while not os.path.isfile(img_name) or not os.path.isfile(img_name_neighbor):
+            print("Image {} missing ".format(img_name))
+            time.sleep(2)
+
+
+        image = Image.open(img_name)
+        image_neighbor = Image.open(img_name_neighbor)
+        label = img_name.split('/')[-2]
+        label = class_to_idx[label]
+        if transform:
+            image = transform(image)
+            image_neighbor = transform(image_neighbor)
+
+        return image, image_neighbor, label
 
 
 class GansetDataset(Dataset):
