@@ -1,13 +1,12 @@
 from __future__ import print_function
 
-import ipdb
 
 import numpy as np
+import pdb
 from multiprocessing import Pool
 import functools
 
 
-import ipdb
 import os
 import sys
 import argparse
@@ -36,31 +35,30 @@ except ImportError:
 
 
 def getitem(idx, root_dir, transform, class_to_idx, numcontrast=0):
-    return 0
-    #if torch.is_tensor(idx):
-    #    idx = idx.tolist()
+    if torch.is_tensor(idx):
+        idx = idx.tolist()
 
-    #img_name = '{}/{}_anchor'.format(root_dir, idx)
+    img_name = '{}/{}_anchor'.format(root_dir, idx)
 
-    #if numcontrast > 0:
-    #    img_name_neighbor = img_name.replace('anchor','neighbor')
-    #else:
-    #    img_name_neighbor = img_name
+    if numcontrast > 0:
+        img_name_neighbor = img_name.replace('anchor','neighbor')
+    else:
+        img_name_neighbor = img_name
    
-    #while not os.path.isfile(img_name) or not os.path.isfile(img_name_neighbor):
-    #    print("Image {} missing ".format(img_name))
-    #    time.sleep(2)
+    while not os.path.isfile(img_name) or not os.path.isfile(img_name_neighbor):
+        print("Image {} missing ".format(img_name))
+        time.sleep(2)
 
 
-    #image = Image.open(img_name)
-    #image_neighbor = Image.open(img_name_neighbor)
-    #label = img_name.split('/')[-2]
-    #label = class_to_idx[label]
-    #if transform:
-    #    image = transform(image)
-    #    image_neighbor = transform(image_neighbor)
+    image = Image.open(img_name)
+    image_neighbor = Image.open(img_name_neighbor)
+    label = img_name.split('/')[-2]
+    label = class_to_idx[label]
+    if transform:
+        image = transform(image)
+        image_neighbor = transform(image_neighbor)
 
-    #return image, image_neighbor, label
+    return image, image_neighbor, label
 
 def parse_option():
     parser = argparse.ArgumentParser('argument for training')
@@ -245,7 +243,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt):
+def train(train_loader, model, criterion, optimizer, epoch, opt, pool):
     """one epoch training"""
     model.train()
 
@@ -271,18 +269,13 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
                 transform=train_loader.transform, 
                 class_to_idx=train_loader.class_to_idx)
 
-    def getitem2(idx):
-        return idx
 
-    pool = Pool(opt.num_workers)
-    print(pool)
     while index_batch < opt.numiter:
         im_indices = [i+index_total for i in range(opt.batch_size)]
-        data = pool.map(getitem2, im_indices)
-        print(data)
+        data = pool.map(func_pool, im_indices)
         index_batch += opt.batch_size
         index_total += opt.batch_size
-        ipdb.set_trace()
+        pdb.set_trace()
 
         if len(data) == 2:
             images = data[0]
@@ -404,13 +397,14 @@ def main():
         init_epoch = model_ckp['epoch'] + 1
         model.load_state_dict(model_ckp['model'])
         optimizer.load_state_dict(model_ckp['optimizer'])
+    pool = Pool(processes=opt.num_workers)
 
     for epoch in range(init_epoch, opt.epochs + 1):
         adjust_learning_rate(opt, optimizer, epoch)
 
         # train for one epoch
         time1 = time.time()
-        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt)
+        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt, pool)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
