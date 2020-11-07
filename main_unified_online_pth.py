@@ -252,6 +252,7 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         model_biggan = torch.nn.DataParallel(model_biggan, device_ids=devices)
     #model_biggan = torch.nn.DataParallel(model_biggan)
     truncation = 1.0
+    std_scale = 1.0 
     opt.niter = 130000
     print("Start train")
     # for idx, data in enumerate(train_loader):
@@ -284,7 +285,7 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
 
         seed = start_seed + 2 * ((epoch-1) * (opt.niter // opt.batch_size) + idx) + 1
         state = None if seed is None else np.random.RandomState(seed)
-        ws = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), random_state=state).astype(np.float32)
+        ws = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), scale=std_scale, random_state=state).astype(np.float32)
         zs = zs + torch.from_numpy(ws).cuda(1)
         time_start_gen = time.time()
         anchor_out = model_biggan(zs, class_vector, truncation)
