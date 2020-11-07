@@ -1,6 +1,9 @@
 from __future__ import print_function
+from multiprocessing import Pool
+import functools
 
 import numpy as np
+import pdb
 import os
 import sys
 import argparse
@@ -27,9 +30,9 @@ import PIL.Image
 from pprint import pformat
 # import tensorflow.compat.v1 as tf
 # tf.disable_v2_behavior()
-import tensorflow_hub as hub
+#import tensorflow_hub as hub
 from scipy.stats import truncnorm
-import utils_bigbigan as ubigbi
+#import utils_bigbigan as ubigbi
 from tqdm import tqdm
 import json
 import pickle
@@ -123,7 +126,7 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+    opt.model_name = '{}_{}online_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
@@ -250,7 +253,7 @@ def set_model(opt):
 
     if torch.cuda.is_available():
         if torch.cuda.device_count() > 1:
-            model.encoder = torch.nn.DataParallel(model.encoder)
+            model.encoder = torch.nn.DataParallel(model.encoder, device_ids=[0])
         model = model.cuda()
         criterion = criterion.cuda()
         cudnn.benchmark = True
@@ -279,10 +282,17 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
     idx_imagenet100 = list(map(int, list(imagenet_class_index_dict.keys())))
     print('Loading the model ...')
     model_biggan = BigGAN.from_pretrained('biggan-deep-256').cuda() # <== or 'BigGAN-deep-128'
+    if torch.cuda.device_count() > 1:
+        devices = list(range(1, torch.cuda.device_count()))
+        print('Biggan goes to GPUs: {}'.format(devices))
+        model_biggan = torch.nn.DataParallel(model_biggan, device_ids=devices)
+    #model_biggan = torch.nn.DataParallel(model_biggan)
     truncation = 1.0
     opt.niter = 130000
     print("Start train")
     # for idx, data in enumerate(train_loader):
+    transforms = train_loader.dataset.transform
+    func = functools.partial(trans_func, transform=transforms)
     for batch_num in range(opt.niter // opt.batch_size):
         idx = batch_num
 
@@ -291,14 +301,22 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
         seed = start_seed + 1
         state = None if seed is None else np.random.RandomState(seed)
         zs = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), random_state=state).astype(np.float32)
-        zs = torch.from_numpy(zs).cuda()
+        zs = torch.from_numpy(zs)
         idx_cls = np.random.choice(idx_imagenet100, opt.batch_size)
         class_vector = one_hot_from_int(idx_cls, batch_size=opt.batch_size)
-        class_vector = torch.from_numpy(class_vector).cuda()
+        class_vector = torch.from_numpy(class_vector)
         time_start_gen = time.time()
+        zs = zs.cuda(1)
+        class_vector = class_vector.cuda(1)
+        model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
         anchor_out = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )
+        anchor_out = anchor_out.detach().cpu().numpy()
         images.append(anchor_out)
+
+        pool = Pool(opt.num_workers)
+        pdb.set_trace()
+        images =  pool.map(func, tuple(images))
 
         seed = start_seed + 2
         state = None if seed is None else np.random.RandomState(seed)
@@ -308,6 +326,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
         anchor_out = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )        
         images.append(anchor_out)
+        idpb.set_trace()
         
         labels = idx_cls
         # data=[]
@@ -400,6 +419,14 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
         other_metrics['image'] = [ims[:8], anchors[:8]]
 
     return losses.avg, other_metrics
+
+def func2(x, a):
+    return x*a
+
+def trans_func(single_image, transforms):
+    trans_pil = transforms.ToPILImage()
+    pil_image = trans_pil(single_image)
+    return transform(pil_image)
 
 def training_loader(truncation, batch_size, global_seed=0):
     '''
