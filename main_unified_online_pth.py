@@ -292,7 +292,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
     print("Start train")
     # for idx, data in enumerate(train_loader):
     transforms = train_loader.dataset.transform
-    func = functools.partial(trans_func, transform=transforms)
+    func = functools.partial(trans_func, transforms=transforms)
     for batch_num in range(opt.niter // opt.batch_size):
         idx = batch_num
 
