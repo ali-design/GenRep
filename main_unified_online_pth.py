@@ -126,8 +126,8 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}online_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.numcontrast, opt.learning_rate, 
+    opt.model_name = '{}_{}online_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
 
@@ -184,6 +184,7 @@ def set_loader(opt):
     opt.std = std
 
     train_transform = transforms.Compose([
+        transforms.Resize(opt.img_size),
         transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomApply([
@@ -194,44 +195,7 @@ def set_loader(opt):
         normalize,
     ])
 
-    if opt.dataset == 'cifar10':
-        train_dataset = datasets.CIFAR10(root=opt.data_folder,
-                                         transform=TwoCropTransform(train_transform),
-                                         download=True)
-    elif opt.dataset == 'cifar100':
-        train_dataset = datasets.CIFAR100(root=opt.data_folder,
-                                          transform=TwoCropTransform(train_transform),
-                                          download=True)
-    elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
-    elif opt.dataset == 'biggan':
-        if opt.walk_method == 'random':
-            train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                          transform=train_transform, numcontrast=opt.numcontrast)        
-
-        elif opt.walk_method == 'steer':
-            train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        transform=train_transform, numcontrast=opt.numcontrast)        
-        elif opt.walk_method == 'none':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
-        elif opt.walk_method == 'online':
-            train_loader_online = training_loader(truncation=1.0, batch_size=opt.batch_size, global_seed= 0)#opt.seed)
-
-        ## Ali: ToDo: elif opt.walk_method == 'pca'...
-    else:
-        raise ValueError(opt.dataset)
-
-    if opt.walk_method == 'online':
-        return train_loader_online
-    else:    
-        train_sampler = None
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=opt.batch_size, shuffle=(train_sampler is None),
-            num_workers=opt.num_workers, pin_memory=True, sampler=train_sampler)
-
-        return train_loader
+    return train_transform
 
 
 def set_model(opt):
@@ -261,7 +225,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
+def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
     """one epoch training"""
     model.train()
     
@@ -291,14 +255,14 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
     opt.niter = 130000
     print("Start train")
     # for idx, data in enumerate(train_loader):
-    transform = train_loader.dataset.transform
+    transform = train_transform
     func = functools.partial(trans_func, transform=transform)
     for batch_num in range(opt.niter // opt.batch_size):
         idx = batch_num
 
         images = []
 
-        seed = start_seed + 1
+        seed = start_seed + 2 * ((epoch-1) * (opt.niter // opt.batch_size) + idx)
         state = None if seed is None else np.random.RandomState(seed)
         zs = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), random_state=state).astype(np.float32)
         zs = torch.from_numpy(zs)
@@ -312,23 +276,28 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
         anchor_out = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )
         anchor_out = anchor_out.detach().cpu().numpy()
-        images.append(anchor_out)
+        anchor_out =  [x[0] for x in np.split(anchor_out, anchor_out.shape[0])]
+        with Pool(opt.num_workers) as pool:
+            images_anchor =  pool.map(func, anchor_out)
+            images_anchor = np.concatenate([x[None,:] for x in images_anchor])
+            images_anchor = torch.from_numpy(images_anchor)
 
-        pool = Pool(opt.num_workers)
-        pdb.set_trace()
-        images =  pool.map(func, tuple(images))
-
-        seed = start_seed + 2
+        seed = start_seed + 2 * ((epoch-1) * (opt.niter // opt.batch_size) + idx) + 1
         state = None if seed is None else np.random.RandomState(seed)
         ws = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), random_state=state).astype(np.float32)
-        zs = zs + torch.from_numpy(ws).cuda()
+        zs = zs + torch.from_numpy(ws).cuda(1)
         time_start_gen = time.time()
         anchor_out = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )        
-        images.append(anchor_out)
-        idpb.set_trace()
+        anchor_out = anchor_out.detach().cpu().numpy()
+        anchor_out =  [x[0] for x in np.split(anchor_out, anchor_out.shape[0])]
+        with Pool(opt.num_workers) as pool:
+            images_anchor2 =  pool.map(func, anchor_out)
+            images_anchor2 = np.concatenate([x[None,:] for x in images_anchor])
+            images_anchor2 = torch.from_numpy(images_anchor2)
+        images = [images_anchor, images_anchor2]
         
-        labels = idx_cls
+        labels = torch.tensor(idx_cls)
         # data=[]
         # labels=[]
         # if len(data) == 2:
@@ -357,7 +326,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
         # labels = labels.cuda(non_blocking=True) <== do we need non_blocking for idx_cls?
         bsz = labels.shape[0]
         # warm-up learning rate
-        warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
+        warmup_learning_rate(opt, epoch, idx, opt.niter, optimizer)
         # compute loss
 
 
@@ -420,11 +389,12 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
 
     return losses.avg, other_metrics
 
-def func2(x, a):
-    return x*a
 
 def trans_func(single_image, transform):
-    trans_pil = transform.ToPILImage()
+    single_image = 255 * ((single_image + 1.0)/2.0)
+    single_image = single_image.astype(np.uint8)
+    single_image = np.transpose(single_image, [1, 2, 0])
+    trans_pil = transforms.ToPILImage()
     pil_image = trans_pil(single_image)
     return transform(pil_image)
 
@@ -436,7 +406,7 @@ def main():
 
     # build data loader
     # opt.encoding_type tells us how to get training data
-    train_loader = set_loader(opt)
+    train_transform = set_loader(opt)
 
     # build model and criterion
     # opt.encoding_type tells us what to put as the head; choices are:
@@ -457,7 +427,7 @@ def main():
 
         # train for one epoch
         time1 = time.time()
-        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt, start_seed=0)
+        loss, other_metrics = train(train_transform, model, criterion, optimizer, epoch, opt, start_seed=0)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
