@@ -291,8 +291,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
     opt.niter = 130000
     print("Start train")
     # for idx, data in enumerate(train_loader):
-    transforms = train_loader.dataset.transform
-    func = functools.partial(trans_func, transforms=transforms)
+    transform = train_loader.dataset.transform
+    func = functools.partial(trans_func, transform=transform)
     for batch_num in range(opt.niter // opt.batch_size):
         idx = batch_num
 
@@ -423,8 +423,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, start_seed):
 def func2(x, a):
     return x*a
 
-def trans_func(single_image, transforms):
-    trans_pil = transforms.ToPILImage()
+def trans_func(single_image, transform):
+    trans_pil = transform.ToPILImage()
     pil_image = trans_pil(single_image)
     return transform(pil_image)
 
