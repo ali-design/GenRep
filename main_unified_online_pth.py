@@ -428,44 +428,6 @@ def trans_func(single_image, transform):
     pil_image = trans_pil(single_image)
     return transform(pil_image)
 
-def training_loader(truncation, batch_size, global_seed=0):
-    '''
-    Returns an infinite generator that runs through randomized z
-    batches, forever.
-    '''
-    g_epoch = 1
-    while True:
-        z_data = biggan_networks.truncated_noise_dataset(truncation=truncation,
-                                                         batch_size=10000, 
-                                                         seed=g_epoch + global_seed)
-        dataloader = torch.utils.data.DataLoader(
-                z_data,
-                shuffle=False,
-                batch_size=batch_size,
-                num_workers=10,
-                pin_memory=True)
-        for batch in dataloader:
-            yield batch
-        g_epoch += 1
-
-def epoch_grouper(loader, epoch_size, num_epochs=None):
-    '''
-    To use with the infinite training loader: groups the training data
-    batches into epochs of the given size.
-    '''
-    it = iter(loader)
-    epoch = 0
-    while True:
-        chunk_it = itertools.islice(it, epoch_size)
-        try:
-            first_el = next(chunk_it)
-        except StopIteration:
-            return
-        yield itertools.chain((first_el,), chunk_it)
-        epoch += 1
-        if num_epochs is not None and epoch >= num_epochs:
-            return
-
 def main():
     opt = parse_option()
 
