@@ -15,6 +15,7 @@ import tensorboard_logger as tb_logger
 import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
+from torchvision.transforms import functional
 
 from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
 from util import adjust_learning_rate, warmup_learning_rate
@@ -57,7 +58,7 @@ def parse_option():
                         choices=['contrastive', 'crossentropy', 'autoencoding'])
     parser.add_argument('--print_freq', type=int, default=1,
                         help='print frequency')
-    parser.add_argument('--save_freq', type=int, default=20,
+    parser.add_argument('--save_freq', type=int, default=5,
                         help='save frequency')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch_size')
@@ -126,7 +127,7 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}online_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+    opt.model_name = '{}_{}online4_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
@@ -184,7 +185,6 @@ def set_loader(opt):
     opt.std = std
 
     train_transform = transforms.Compose([
-        transforms.Resize(opt.img_size),
         transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomApply([
@@ -259,6 +259,7 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
     transform = train_transform
     func = functools.partial(trans_func, transform=transform)
     count = opt.niter // opt.batch_size
+    #pool = Pool(1)
     for batch_num in range(opt.niter // opt.batch_size):
         idx = batch_num
 
@@ -280,8 +281,8 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         with torch.no_grad():
             anchor_out = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )
+        anchor_out = 255 * ((anchor_out + 1.0)/2.0)
         anchor_out = anchor_out.detach().cpu().numpy()
-        anchor_out =  [x[0] for x in np.split(anchor_out, anchor_out.shape[0])]
 
         seed = start_seed + 2 * ((epoch-1) * (opt.niter // opt.batch_size) + idx) + 1
         state = None if seed is None else np.random.RandomState(seed)
@@ -291,19 +292,31 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         with torch.no_grad():
             anchor_out2 = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )        
+        anchor_out2 = 255 * ((anchor_out2 + 1.0)/2.0)
         anchor_out2 = anchor_out2.detach().cpu().numpy()
-        anchor_out2 =  [x[0] for x in np.split(anchor_out2, anchor_out2.shape[0])]
+
+        anchor_out = anchor_out.astype(np.uint8)
+        anchor_out2 = anchor_out2.astype(np.uint8)
+        anchor_out = np.transpose(anchor_out, [0, 2, 3, 1])
+        anchor_out2 = np.transpose(anchor_out2, [0, 2, 3, 1])
+
+
+        anchor_out2 = np.split(anchor_out2, anchor_out2.shape[0])
+        anchor_out =  np.split(anchor_out, anchor_out.shape[0])
         time_start_gen = time.time()
         #with Pool(opt.num_workers) as pool:
-        #    images_anchor_all =  pool.map(func, anchor_out+anchor_out2)
+        #images_anchor_all =  pool.map(func, anchor_out+anchor_out2)
         #print(len(images_anchor_all))
         #images_anchor = images_anchor_all[:opt.batch_size]
         #images_anchor2 = images_anchor_all[opt.batch_size:]
 
-        with Pool(opt.num_workers) as pool:
-            images_anchor =  pool.map(func, anchor_out)
-        with Pool(opt.num_workers) as pool:
-            images_anchor2 =  pool.map(func, anchor_out2)
+        #with Pool(opt.num_workers) as pool:
+
+        #images_anchor =  pool.map(func, anchor_out)
+        #images_anchor2 =  pool.map(func, anchor_out2)
+        images_anchor =  map(func, anchor_out)
+        images_anchor2 =  map(func, anchor_out2)
+
 
         images_anchor = np.concatenate([x[None,:] for x in images_anchor])
         images_anchor = torch.from_numpy(images_anchor)
@@ -408,11 +421,7 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
 
 
 def trans_func(single_image, transform):
-    single_image = 255 * ((single_image + 1.0)/2.0)
-    single_image = single_image.astype(np.uint8)
-    single_image = np.transpose(single_image, [1, 2, 0])
-    trans_pil = transforms.ToPILImage()
-    pil_image = trans_pil(single_image)
+    pil_image = functional.to_pil_image(single_image[0])
     return transform(pil_image)
 
 def main():
