@@ -252,12 +252,8 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         model_biggan = torch.nn.DataParallel(model_biggan, device_ids=devices)
     #model_biggan = torch.nn.DataParallel(model_biggan)
     truncation = 1.0
-<<<<<<< HEAD
-    opt.niter = 13000
-=======
-    std_scale = 1.0 
+    std_scale = 1.0
     opt.niter = 130000
->>>>>>> 98787f0a57e6f37d71e3a1f2a77d5702c462925c
     print("Start train")
     # for idx, data in enumerate(train_loader):
     transform = train_transform
@@ -298,11 +294,16 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         anchor_out2 = anchor_out2.detach().cpu().numpy()
         anchor_out2 =  [x[0] for x in np.split(anchor_out2, anchor_out2.shape[0])]
         time_start_gen = time.time()
+        #with Pool(opt.num_workers) as pool:
+        #    images_anchor_all =  pool.map(func, anchor_out+anchor_out2)
+        #print(len(images_anchor_all))
+        #images_anchor = images_anchor_all[:opt.batch_size]
+        #images_anchor2 = images_anchor_all[opt.batch_size:]
+
         with Pool(opt.num_workers) as pool:
-            images_anchor_all =  pool.map(func, anchor_out+anchor_out2)
-        print(len(images_anchor_all))
-        images_anchor = images_anchor_all[:opt.batch_size]
-        images_anchor2 = images_anchor_all[opt.batch_size:]
+            images_anchor =  pool.map(func, anchor_out)
+        with Pool(opt.num_workers) as pool:
+            images_anchor2 =  pool.map(func, anchor_out2)
 
         images_anchor = np.concatenate([x[None,:] for x in images_anchor])
         images_anchor = torch.from_numpy(images_anchor)
