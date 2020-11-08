@@ -55,7 +55,7 @@ def parse_option():
     parser = argparse.ArgumentParser('argument for training')
     parser.add_argument('--encoding_type', type=str, default='contrastive',
                         choices=['contrastive', 'crossentropy', 'autoencoding'])
-    parser.add_argument('--print_freq', type=int, default=10,
+    parser.add_argument('--print_freq', type=int, default=1,
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=20,
                         help='save frequency')
@@ -252,20 +252,23 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         model_biggan = torch.nn.DataParallel(model_biggan, device_ids=devices)
     #model_biggan = torch.nn.DataParallel(model_biggan)
     truncation = 1.0
-    opt.niter = 130000
+    opt.niter = 13000
     print("Start train")
     # for idx, data in enumerate(train_loader):
     transform = train_transform
     func = functools.partial(trans_func, transform=transform)
+    count = opt.niter // opt.batch_size
     for batch_num in range(opt.niter // opt.batch_size):
         idx = batch_num
 
         images = []
-
+        t1 = time.time()
         seed = start_seed + 2 * ((epoch-1) * (opt.niter // opt.batch_size) + idx)
         state = None if seed is None else np.random.RandomState(seed)
         zs = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), random_state=state).astype(np.float32)
         zs = torch.from_numpy(zs)
+        zsold = zs
+        time_start_gen = time.time()
         idx_cls = np.random.choice(idx_imagenet100, opt.batch_size)
         class_vector = one_hot_from_int(idx_cls, batch_size=opt.batch_size)
         class_vector = torch.from_numpy(class_vector)
@@ -273,28 +276,36 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
         zs = zs.cuda(1)
         class_vector = class_vector.cuda(1)
         model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
-        anchor_out = model_biggan(zs, class_vector, truncation)
+        with torch.no_grad():
+            anchor_out = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )
         anchor_out = anchor_out.detach().cpu().numpy()
         anchor_out =  [x[0] for x in np.split(anchor_out, anchor_out.shape[0])]
-        with Pool(opt.num_workers) as pool:
-            images_anchor =  pool.map(func, anchor_out)
-            images_anchor = np.concatenate([x[None,:] for x in images_anchor])
-            images_anchor = torch.from_numpy(images_anchor)
 
         seed = start_seed + 2 * ((epoch-1) * (opt.niter // opt.batch_size) + idx) + 1
         state = None if seed is None else np.random.RandomState(seed)
         ws = truncation * truncnorm.rvs(-2, 2, size=(opt.batch_size, 128), random_state=state).astype(np.float32)
         zs = zs + torch.from_numpy(ws).cuda(1)
         time_start_gen = time.time()
-        anchor_out = model_biggan(zs, class_vector, truncation)
+        with torch.no_grad():
+            anchor_out2 = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )        
-        anchor_out = anchor_out.detach().cpu().numpy()
-        anchor_out =  [x[0] for x in np.split(anchor_out, anchor_out.shape[0])]
+        anchor_out2 = anchor_out2.detach().cpu().numpy()
+        anchor_out2 =  [x[0] for x in np.split(anchor_out2, anchor_out2.shape[0])]
+        time_start_gen = time.time()
         with Pool(opt.num_workers) as pool:
-            images_anchor2 =  pool.map(func, anchor_out)
-            images_anchor2 = np.concatenate([x[None,:] for x in images_anchor])
-            images_anchor2 = torch.from_numpy(images_anchor2)
+            images_anchor_all =  pool.map(func, anchor_out+anchor_out2)
+        print(len(images_anchor_all))
+        images_anchor = images_anchor_all[:opt.batch_size]
+        images_anchor2 = images_anchor_all[opt.batch_size:]
+
+        images_anchor = np.concatenate([x[None,:] for x in images_anchor])
+        images_anchor = torch.from_numpy(images_anchor)
+
+        images_anchor2 = np.concatenate([x[None,:] for x in images_anchor2])
+        images_anchor2 = torch.from_numpy(images_anchor2)
+        print("pooling time:", time.time() - time_start_gen)
+        print('total time', time.time() - t1)
         images = [images_anchor, images_anchor2]
         
         labels = torch.tensor(idx_cls)
@@ -369,14 +380,14 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
                       'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
                       'loss {loss.val:.3f} ({loss.avg:.3f})\t'
                       'Acc@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
+                          epoch, idx + 1, count, batch_time=batch_time,
                        data_time=data_time, loss=losses, top1=top1))
             else:
                 print('Train: [{0}][{1}/{2}]\t'
                       'BT {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'DT {data_time.val:.3f} ({data_time.avg:.3f})\t'
                       'loss {loss.val:.3f} ({loss.avg:.3f})'.format(
-                       epoch, idx + 1, len(train_loader), batch_time=batch_time,
+                          epoch, idx + 1, count, batch_time=batch_time,
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
     other_metrics = {}
