@@ -58,7 +58,7 @@ def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., see
     return list_results
 
 def sample(opt):
-    output_path = (os.path.join(opt.out_dir, 'biggan%dtr%d-%s_%s_%d_samples' %
+    output_path = (os.path.join(opt.out_dir, 'test_biggan%dtr%d-%s_%s_%d_samples' %
                    (opt.size, int(opt.truncation), opt.imformat, opt.desc, opt.num_neighbors)))
     partition = opt.partition
     # start_seed, nimg = constants.get_seed_nimg(partition)
@@ -122,9 +122,9 @@ if __name__ == '__main__':
     parser.add_argument('--size', default=256, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--imformat', default='png', type=str)
-    parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
+    parser.add_argument('--num_imgs', default=3, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
-    parser.add_argument('--num_neighbors', default=20, type=int, help='num samples per anchor')
+    parser.add_argument('--num_neighbors', default=5, type=int, help='num samples per anchor')
     parser.add_argument('--desc', default='steer_rnd_std2.0_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
     opt = parser.parse_args()
     sample(opt)

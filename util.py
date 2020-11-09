@@ -20,6 +20,7 @@ from PIL import Image
 import json
 from scipy.stats import truncnorm
 import random
+import pickle
 
 def convert_to_images(obj):
     """ Convert an output tensor from BigGAN in a list of images.
@@ -339,7 +340,7 @@ class OnlineDataset():
 class GansetDataset(Dataset):
     """The idea is to load the anchor image and its neighbor"""
 
-    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None, numcontrast=5):
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None, numcontrast=5, method=None):
         """
         Args:
             neighbor_std: std in the z-space
@@ -356,6 +357,7 @@ class GansetDataset(Dataset):
         self.transform = transform
         self.walktype = walktype
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
+        self.method = method
 
         # get list of anchor images
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
@@ -408,13 +410,21 @@ class GansetDataset(Dataset):
             image = self.transform(image)
             image_neighbor = self.transform(image_neighbor)
 
-        return image, image_neighbor, label
+        z_vect = []
+        if self.method == 'SupInv': # later can check for Unsupervised inverter will empty labels
+            # print('loading z_dict in ', self.imglist[idx].split('/')[-2])
+            with open(os.path.join(self.root_dir, self.imglist[idx].split('/')[-2], 'z_dataset.pkl'), 'rb') as fid:
+                z_dict = pickle.load(fid)
+            z_vect.append(z_dict[os.path.basename(img_name)][0]) 
+            z_vect.append(z_dict[os.path.basename(img_name_neighbor)][0])    
+   
+        return image, image_neighbor, label, z_vect
 
 
 class GansteerDataset(Dataset):
     """The idea is to load the negative-alpha image and its neighbor (positive-alpha)"""
 
-    def __init__(self, root_dir, transform=None, numcontrast=5):
+    def __init__(self, root_dir, transform=None, numcontrast=5, method=None):
         """
         Args:
             root_dir (string): Directory with all the images.

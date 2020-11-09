@@ -96,3 +96,17 @@ class SupConLoss(nn.Module):
         loss = loss.view(anchor_count, batch_size).mean()
 
         return loss
+
+
+class InverterLoss(nn.Module):
+    def __init__(self):
+        super(InverterLoss, self).__init__()
+        self.loss_z = nn.MSELoss()
+        self.loss_y = nn.CrossEntropyLoss()
+
+    def forward(self, features, z_batch, labels):
+        loss_z = self.loss_z(features[0], z_batch)
+        loss_y = self.loss_y(features[1], labels)#torch.tensor(idx, dtype=torch.int64))
+        loss = loss_z + loss_y
+        return loss, loss_z, loss_y
+
