@@ -97,23 +97,23 @@ class SupConLoss(nn.Module):
 
         return loss
 
-
-class InverterLoss(nn.Module):
-    def __init__(self, num_classes=1000):
-        super(InverterLoss, self).__init__()
+class SupInverterLoss(nn.Module):
+    def __init__(self):
+        super(SupInverterLoss, self).__init__()
         self.loss_z = nn.MSELoss()
         self.loss_y = nn.CrossEntropyLoss()
-        self.supervised_flag = False if num_classes==0 else True
-        if self.supervised_flag == False:
-            self.loss_y = None
-
 
     def forward(self, features, z_batch, labels):
         loss_z = self.loss_z(features[0], z_batch)
-        if self.supervised_flag:
-            loss_y = self.loss_y(features[1], labels)#torch.tensor(idx, dtype=torch.int64))
-            loss = loss_z + loss_y
-            return loss, loss_z, loss_y
-        else:
-            return loss_z
+        loss_y = self.loss_y(features[1], labels)#torch.tensor(idx, dtype=torch.int64))
+        loss = loss_z + loss_y
+        return loss, loss_z, loss_y
 
+class UnsupInverterLoss(nn.Module):
+    def __init__(self):
+        super(UnsupInverterLoss, self).__init__()
+        self.loss_z = nn.MSELoss()
+
+    def forward(self, features, z_batch):
+        loss_z = self.loss_z(features, z_batch)
+        return loss_z

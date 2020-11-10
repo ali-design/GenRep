@@ -16,8 +16,8 @@ from torchvision import transforms, datasets
 from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from util import set_optimizer, save_model
-from networks.resnet_big import SupConResNet, SupCEResNet, InverterResNet
-from losses import SupConLoss, InverterLoss
+from networks.resnet_big import SupConResNet, SupCEResNet, SupInverterResNet, UnsupInverterResNet
+from losses import SupConLoss, SupInverterLoss, UnsupInverterLoss
 import oyaml as yaml
 
 try:
@@ -234,12 +234,11 @@ def set_model(opt):
 
     elif opt.encoding_type == 'inverter':
         if opt.method == 'SupInv':
-            num_classes = 1000
+            model = SupInverterResNet(name=opt.model, img_size=int(opt.img_size*0.875))
+            criterion = SupInverterLoss()
         elif opt.method == 'UnsupInv':
-            num_classes = 0
-        model = InverterResNet(name=opt.model, img_size=int(opt.img_size*0.875), num_classes=num_classes)
-        criterion = InverterLoss(num_classes)
-
+            model = UnsupInverterResNet(name=opt.model, img_size=int(opt.img_size*0.875))
+            criterion = UnsupInverterLoss()
 
     # enable synchronized Batch Normalization
     if opt.syncBN:
@@ -338,7 +337,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             if opt.method == 'SupInv':
                 loss, loss_z, loss_y = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
             elif opt.method == 'UnsupInv':
-                loss = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
+                loss = criterion(output, z_vect) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
 
             ## Ali: ToDo deal with this top1   
             # acc1, acc5 = accuracy(output, labels, topk=(1, 5))

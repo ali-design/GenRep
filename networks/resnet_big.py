@@ -187,27 +187,33 @@ class SupConResNet(nn.Module):
         feat = F.normalize(self.head(feat), dim=1)
         return feat
 
-class InverterResNet(nn.Module):
+class SupInverterResNet(nn.Module):
     """backbone + z and y heads"""
     def __init__(self, name='resnet50', img_size=256, z_dim=128, num_classes=1000):
-        super(InverterResNet, self).__init__()
+        super(SupInverterResNet, self).__init__()
         model_fun, dim_in = model_dict[name]
         self.encoder = model_fun(img_size=img_size)
         self.last_layer_z = torch.nn.Linear(dim_in, z_dim) #(2048, 128)
-        self.supervised_flag = True
         self.last_layer_y = torch.nn.Linear(dim_in, num_classes) #(2048, 1000)
-        if num_classes == 0:
-            self.supervised_flag = False
-            self.last_layer_y = None
             
     def forward(self, x):
         encoded = self.encoder(x) # x is fake_im
         z_pred = self.last_layer_z(encoded)
-        if self.supervised_flag:
-            y_pred = self.last_layer_y(encoded)
-            return [z_pred, y_pred]
-        else:
-            return z_pred
+        y_pred = self.last_layer_y(encoded)
+        return [z_pred, y_pred]
+
+class UnsupInverterResNet(nn.Module):
+    """backbone + z head"""
+    def __init__(self, name='resnet50', img_size=256, z_dim=120):
+        super(UnsupInverterResNet, self).__init__()
+        model_fun, dim_in = model_dict[name]
+        self.encoder = model_fun(img_size=img_size)
+        self.last_layer_z = torch.nn.Linear(dim_in, z_dim) #(2048, 128)
+            
+    def forward(self, x):
+        encoded = self.encoder(x) # x is fake_im
+        z_pred = self.last_layer_z(encoded)
+        return z_pred
 
 class SupCEResNet(nn.Module):
     """encoder + classifier"""

@@ -110,7 +110,7 @@ def sample(opt):
                     else:
                         im_name = 'seed%04d_sample%05d_1.0_%d.%s' % (seed, batch_start+i, ii, imformat)
                     im.save(os.path.join(class_dir_name, im_name))
-                    z_dict[im_name] = [noise_vector[i].cpu().numpy(), idx]
+                    z_dict[im_name] = [noise_vector[batch_start+i].cpu().numpy(), idx]
         with open(os.path.join(class_dir_name, 'z_dataset.pkl'), 'wb') as fid:
             pickle.dump(z_dict,fid)
 
