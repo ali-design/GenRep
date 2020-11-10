@@ -374,11 +374,12 @@ class GansetDataset(Dataset):
         print(root_dir)
         classes = [x.split('/')[-1] for x in classes]
         class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
-        # append the z_dataset to the dict:
-        for classname in classes:
-            with open(os.path.join(self.root_dir, classname, 'z_dataset.pkl'), 'rb') as fid:
-                z_dict = pickle.load(fid)
-            self.z_dict[classname] = z_dict
+        if self.method == 'SupInv' or self.method == 'UnsupInv':
+            # append the z_dataset to the dict:
+            for classname in classes:
+                with open(os.path.join(self.root_dir, classname, 'z_dataset.pkl'), 'rb') as fid:
+                    z_dict = pickle.load(fid)
+                self.z_dict[classname] = z_dict
 
         return classes, class_to_idx
 
@@ -406,12 +407,6 @@ class GansetDataset(Dataset):
 
         image_neighbor = Image.open(img_name_neighbor)
         label = self.imglist[idx].split('/')[-2]
-        # with open('./utils/imagenet_class_index.json', 'rb') as fid:
-        #     imagenet_class_index_dict = json.load(fid)
-        # for key, value in imagenet_class_index_dict.items():
-        #     if value[0] == label:
-        #         label = key
-        #         break
         label = self.class_to_idx[label]
         if self.transform:
             image = self.transform(image)
@@ -425,7 +420,10 @@ class GansetDataset(Dataset):
             # z = np.random.normal(size=128).astype(np.float32)
             # z_vect.append(z)
             # z_vect.append(z)
-        return image, image_neighbor, label, z_vect
+            return image, image_neighbor, label, z_vect
+        else:
+            return image, image_neighbor, label
+
 
 
 class GansteerDataset(Dataset):
