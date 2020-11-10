@@ -356,6 +356,7 @@ class GansetDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.walktype = walktype
+        self.z_dict = dict()
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
         self.method = method
 
@@ -373,6 +374,12 @@ class GansetDataset(Dataset):
         print(root_dir)
         classes = [x.split('/')[-1] for x in classes]
         class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
+        # append the z_dataset to the dict:
+        for classname in classes:
+            with open(os.path.join(self.root_dir, classname, 'z_dataset.pkl'), 'rb') as fid:
+                z_dict = pickle.load(fid)
+            self.z_dict[classname] = z_dict
+
         return classes, class_to_idx
 
     def __len__(self):
@@ -412,12 +419,12 @@ class GansetDataset(Dataset):
 
         z_vect = []
         if self.method == 'SupInv': # later can check for Unsupervised inverter will empty labels
-            # print('loading z_dict in ', self.imglist[idx].split('/')[-2])
-            with open(os.path.join(self.root_dir, self.imglist[idx].split('/')[-2], 'z_dataset.pkl'), 'rb') as fid:
-                z_dict = pickle.load(fid)
-            z_vect.append(z_dict[os.path.basename(img_name)][0]) 
-            z_vect.append(z_dict[os.path.basename(img_name_neighbor)][0])    
-   
+            label_dict = self.imglist[idx].split('/')[-2]
+            z_vect.append(self.z_dict[label_dict][os.path.basename(img_name)][0]) 
+            z_vect.append(self.z_dict[label_dict][os.path.basename(img_name_neighbor)][0])   
+            # z = np.random.normal(size=128).astype(np.float32)
+            # z_vect.append(z)
+            # z_vect.append(z)
         return image, image_neighbor, label, z_vect
 
 

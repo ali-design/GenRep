@@ -264,8 +264,11 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
     print("Start train")
-    for idx, data in enumerate(train_loader):
+    # t1 = time.time()
 
+    for idx, data in enumerate(train_loader):
+        # print('batch loading time', time.time() - t1)
+        # t2 = time.time()
         if len(data) == 2:
             images = data[0]
             labels = data[1]
@@ -280,14 +283,16 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             raise NotImplementedError
         
         data_time.update(time.time() - end)
-        if opt.encoding_type != 'contrastive':
+        if opt.encoding_type == 'crossentropy':
             # We only pick one of images
             images = images[1]
-            # also only pick z_vect[1] ToDo: if alwasy the case just send z anchor (channel 0) from loader, but make sure image is also images[0]
-            z_vect = z_vect[1].cuda(non_blocking=True)       
+        elif opt.encoding_type == 'inverter':
+            # We only pick one of images and that's anchor
+            images = images[0]
+            # also only pick z_vect[0] ToDo: if alwasy the case just send z anchor (channel 0) from loader, but make sure image is also images[0]
+            z_vect = z_vect[0].cuda(non_blocking=True)       
 
-
-        else:
+        elif opt.encoding_type == 'contrastive':
             ims = images[0]
             anchors = images[1]
             images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
@@ -302,7 +307,6 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
         # warm-up learning rate
         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
         # compute loss
-
 
         if opt.encoding_type == 'contrastive':
             features = model(images)
@@ -330,8 +334,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
 
         else:
             raise NotImplementedError
-
-
+        # t3 = time.time()
+        # print('{}- spent time before loss update: {}'.format(idx, t3 - t2))    
         # update metric
         losses.update(loss.item(), bsz)
 
@@ -339,6 +343,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # t4 = time.time()
+        # print('{}- spent after before loss update: {}'.format(idx, t4 - t3))    
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -362,13 +368,17 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
                        epoch, idx + 1, len(train_loader), batch_time=batch_time,
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
+        # t1 = time.time()
     other_metrics = {}
 
     if opt.encoding_type == 'crossentropy':
         other_metrics['top1_acc'] = top1.avg
-    else:
+    elif opt.encoding_type == 'contrastive':
         if opt.showimg:
             other_metrics['image'] = [ims[:8], anchors[:8]]
+    elif opt.encoding_type == 'inverter':
+        if opt.showimg:
+            other_metrics['image'] = [images[:8]]
 
 
     if opt.method == 'SupInv':
