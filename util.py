@@ -418,7 +418,7 @@ class GansetDataset(Dataset):
             image_neighbor = self.transform(image_neighbor)
 
         z_vect = []
-        if self.method == 'SupInv': # later can check for Unsupervised inverter will empty labels
+        if self.method == 'SupInv' or self.method == 'UnsupInv': # later can check for Unsupervised inverter will empty labels
             label_dict = self.imglist[idx].split('/')[-2]
             z_vect.append(self.z_dict[label_dict][os.path.basename(img_name)][0]) 
             z_vect.append(self.z_dict[label_dict][os.path.basename(img_name_neighbor)][0])   

@@ -97,10 +97,14 @@ def parse_option():
         opt.method = 'SupCE'
         opt.model_path = os.path.join(opt.cache_folder, 'SupCE/{}_models'.format(opt.dataset))
         opt.tb_path = os.path.join(opt.cache_folder, 'SupCE/{}_tensorboard'.format(opt.dataset))
-    elif opt.encoding_type == 'inverter': #and opt.method == 'SupCon': <== Ali: This is for biggan, then maybe want to do bibiggan for unsupervised (no labels)
-        opt.method = 'SupInv'
-        opt.model_path = os.path.join(opt.cache_folder, 'SupInv/{}_models'.format(opt.dataset))
-        opt.tb_path = os.path.join(opt.cache_folder, 'SupInv/{}_tensorboard'.format(opt.dataset))
+    elif opt.encoding_type == 'inverter': 
+        if opt.method == 'SupCon':
+            opt.method = 'SupInv'
+        elif opt.method == 'SimCLR':
+            opt.method = 'UnsupInv'
+        opt.model_path = os.path.join(opt.cache_folder, '{}/{}_models'.format(opt.method, opt.dataset))
+        opt.tb_path = os.path.join(opt.cache_folder, '{}/{}_tensorboard'.format(opt.method, opt.dataset))
+
     else:
         opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
         opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
@@ -229,8 +233,13 @@ def set_model(opt):
         criterion = torch.nn.CrossEntropyLoss()
 
     elif opt.encoding_type == 'inverter':
-        model = InverterResNet(name=opt.model, img_size=int(opt.img_size*0.875))
-        criterion = InverterLoss()
+        if opt.method == 'SupInv':
+            num_classes = 1000
+        elif opt.method == 'UnsupInv':
+            num_classes = 0
+        model = InverterResNet(name=opt.model, img_size=int(opt.img_size*0.875), num_classes=num_classes)
+        criterion = InverterLoss(num_classes)
+
 
     # enable synchronized Batch Normalization
     if opt.syncBN:
@@ -326,7 +335,11 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
         elif opt.encoding_type == 'inverter':
             top1 = 0
             output = model(images) # images.shape: [256, 3, 112, 112]
-            loss, loss_z, loss_y = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
+            if opt.method == 'SupInv':
+                loss, loss_z, loss_y = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
+            elif opt.method == 'UnsupInv':
+                loss = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
+
             ## Ali: ToDo deal with this top1   
             # acc1, acc5 = accuracy(output, labels, topk=(1, 5))
             # top1.update(acc1[0], bsz)
@@ -383,6 +396,9 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
 
     if opt.method == 'SupInv':
         return losses.avg, other_metrics, loss_z, loss_y
+    elif opt.method == 'UnsupInv':
+        return losses.avg, other_metrics, loss
+
     else:
         return losses.avg, other_metrics
 
@@ -421,6 +437,9 @@ def main():
             logger.log_value('total loss', loss, epoch)
             logger.log_value('loss_z', loss_z, epoch)
             logger.log_value('loss_y', loss_y, epoch)
+        elif opt.method == 'UnsupInv':
+            loss, other_metrics,loss = train(train_loader, model, criterion, optimizer, epoch, opt)
+            logger.log_value('loss_z', loss, epoch)
         else:
             loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt)
             logger.log_value('loss', loss, epoch)

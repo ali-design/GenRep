@@ -99,14 +99,21 @@ class SupConLoss(nn.Module):
 
 
 class InverterLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes=1000):
         super(InverterLoss, self).__init__()
         self.loss_z = nn.MSELoss()
         self.loss_y = nn.CrossEntropyLoss()
+        self.supervised_flag = False if num_classes==0 else True
+        if self.supervised_flag == False:
+            self.loss_y = None
+
 
     def forward(self, features, z_batch, labels):
         loss_z = self.loss_z(features[0], z_batch)
-        loss_y = self.loss_y(features[1], labels)#torch.tensor(idx, dtype=torch.int64))
-        loss = loss_z + loss_y
-        return loss, loss_z, loss_y
+        if self.supervised_flag:
+            loss_y = self.loss_y(features[1], labels)#torch.tensor(idx, dtype=torch.int64))
+            loss = loss_z + loss_y
+            return loss, loss_z, loss_y
+        else:
+            return loss_z
 
