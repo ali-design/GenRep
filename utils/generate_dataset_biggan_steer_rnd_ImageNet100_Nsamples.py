@@ -52,13 +52,13 @@ def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., see
     state_neighbors = None if seed is None else np.random.RandomState(seed+1000)
     for i in range(num_neighbors):
         state_neighbors = None if seed is None else np.random.RandomState(seed+1000+i)
-        values_neighbors = truncation * truncnorm.rvs(-2, 2, size=(batch_size, dim_z), scale=2.0, random_state=state_neighbors).astype(np.float32)
+        values_neighbors = truncation * truncnorm.rvs(-2, 2, size=(batch_size, dim_z), scale=1.0, random_state=state_neighbors).astype(np.float32)
         list_results.append(zs + values_neighbors)
 
     return list_results
 
 def sample(opt):
-    output_path = (os.path.join(opt.out_dir, 'test_biggan%dtr%d-%s_%s_%d_samples' %
+    output_path = (os.path.join(opt.out_dir, 'nn_biggan%dtr%d-%s_%s_%d_samples' %
                    (opt.size, int(opt.truncation), opt.imformat, opt.desc, opt.num_neighbors)))
     partition = opt.partition
     # start_seed, nimg = constants.get_seed_nimg(partition)
@@ -122,9 +122,9 @@ if __name__ == '__main__':
     parser.add_argument('--size', default=256, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--imformat', default='png', type=str)
-    parser.add_argument('--num_imgs', default=3, type=int, help='num imgs per class')
+    parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
-    parser.add_argument('--num_neighbors', default=5, type=int, help='num samples per anchor')
-    parser.add_argument('--desc', default='steer_rnd_std2.0_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
+    parser.add_argument('--num_neighbors', default=1, type=int, help='num samples per anchor')
+    parser.add_argument('--desc', default='steer_rnd_std1.0_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
     opt = parser.parse_args()
     sample(opt)
