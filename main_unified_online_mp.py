@@ -239,7 +239,12 @@ class OnlineGanDataset(Dataset):
         return images_anchor
     
     def __len__(self):
-        return self.opt.niter * self.opt.epochs
+        #  Since we are skipping samples on every iteration
+        # On every iteration we skip batch % batch_gen
+        # niter / batch * batch mod batch_gen
+        batch_size = self.opt.batch_size
+        skipped = (self.opt.niter // batch_size) * (self.opt.batch_size_gen % batch_size)
+        return (self.opt.niter + skipped) * self.opt.epochs
     
     def __getitem__(self, indices):
         self.lazy_init_gan()
@@ -248,7 +253,6 @@ class OnlineGanDataset(Dataset):
         batch_size = len(indices)
         start_seed = 0
         idx = indices[0]
-        print(idx, "device", torch.cuda.current_device())
         seed = start_seed + 2 * idx
         state = None if seed is None else np.random.RandomState(seed)
 
@@ -323,16 +327,15 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
     ratio_gen_to_consumer = math.ceil(opt.batch_size / opt.batch_size_gen)
     iter_num = 0
     while iter_num < count:
+        idx = iter_num
         iter_num += 1
         data_batch = []
         for it in range(ratio_gen_to_consumer):
             data = next(data_loader_iterator)
             data_batch.append(data)
 
-        pdb.set_trace()
 
         data = [torch.cat(tensor_val)[:opt.batch_size] for tensor_val in zip(*data_batch)]
-        pdb.set_trace()
         if len(data) == 2:
             images = data[0]
             labels = data[1]
