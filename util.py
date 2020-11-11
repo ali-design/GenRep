@@ -357,8 +357,8 @@ class GansetDataset(Dataset):
         self.transform = transform
         self.walktype = walktype
         self.z_dict = dict()
-        self.classes, self.class_to_idx = self._find_classes(self.root_dir)
         self.method = method
+        self.classes, self.class_to_idx = self._find_classes(self.root_dir)
 
         # get list of anchor images
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
