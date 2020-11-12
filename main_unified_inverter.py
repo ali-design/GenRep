@@ -42,7 +42,7 @@ def parse_option():
     parser.add_argument('--epochs', type=int, default=200,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
-
+    parser.add_argument('--removeimtf', action='store_true', help='on/off transformations for inverter')
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
                         help='learning rate')
@@ -175,17 +175,38 @@ def set_loader(opt):
     normalize = transforms.Normalize(mean=mean, std=std)
     opt.mean = mean
     opt.std = std
+    
+    if opt.removeimtf:
+        print('>>> removeimtf is ON.')
+        train_transform = transforms.Compose([
+            transforms.CenterCrop(size=int(opt.img_size*0.875)),
+            transforms.ToTensor(),
+            normalize,
+        ])
+    else:
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        
+        
 
-    train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomApply([
-            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
-        ], p=0.8),
-        transforms.RandomGrayscale(p=0.2),
-        transforms.ToTensor(),
-        normalize,
-    ])
+#     train_transform = transforms.Compose([
+#         transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
+#         transforms.RandomHorizontalFlip(),
+#         transforms.RandomApply([
+#             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+#         ], p=0.8),
+#         transforms.RandomGrayscale(p=0.2),
+#         transforms.ToTensor(),
+#         normalize,
+#     ])
 
     if opt.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(root=opt.data_folder,

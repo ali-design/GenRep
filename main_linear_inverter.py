@@ -16,7 +16,7 @@ from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from torchnet.meter import mAPMeter
 from util import set_optimizer
 from util import VOCDetectionDataset
-from networks.resnet_big import SupConResNet, LinearClassifier, UnsupInverterResNet
+from networks.resnet_big import SupConResNet, LinearClassifier, UnsupInverterResNet, SupInverterResNet
 
 try:
     import apex
@@ -53,7 +53,7 @@ def parse_option():
 
     # model dataset
     parser.add_argument('--encoding_type', type=str, default='contrastive',
-                        choices=['contrastive', 'crossentropy', 'inverter'])    
+                        choices=['contrastive', 'crossentropy', 'UnsupInv', 'SupInv'])    
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
                         choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet', 'voc2007'], help='dataset')
@@ -219,8 +219,10 @@ def set_loader(opt):
 
 
 def set_model(opt):
-    if opt.encoding_type == 'inverter':
-        model = UnsupInverterResNet(name=opt.model, img_size=opt.img_size)
+    if opt.encoding_type == 'UnsupInv':
+        model = UnsupInverterResNet(name=opt.model, img_size=opt.img_size)        
+    elif opt.encoding_type == 'SupInv':
+        model = SupInverterResNet(name=opt.model, img_size=opt.img_size)   
     else:     
         model = SupConResNet(name=opt.model, img_size=opt.img_size)
     if opt.dataset == 'voc2007':
