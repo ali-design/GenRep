@@ -63,12 +63,12 @@ def train_svm(opts):
         cls = cls_list[cls_idx]
         for cost_idx in range(len(costs_list)):
             cost = costs_list[cost_idx]
-            out_file, ap_out_file = svm_helper.get_svm_train_output_files(
+            out_file, ap_out_file = svm_helper.get_svm_train_output_files_acc(
                 cls, cost, opts.output_path
             )
             if os.path.exists(out_file) and os.path.exists(ap_out_file):
                 logger.info('SVM model exists: {}'.format(out_file))
-                logger.info('AP file exists: {}'.format(ap_out_file))
+                logger.info('MACC file exists: {}'.format(ap_out_file))
             else:
                 logger.info('Training model with the cost: {}'.format(cost))
                 clf = LinearSVC(
@@ -90,12 +90,12 @@ def train_svm(opts):
                 logger.info('features: {} cls_labels: {}'.format(
                     features.shape, cls_labels.shape))
                 ap_scores = cross_val_score(
-                    clf, features, cls_labels, cv=3, scoring='average_precision'
+                        clf, features, cls_labels, cv=3 
                 )
                 clf.fit(features, cls_labels)
-                logger.info('cls: {} cost: {} AP: {} mean:{}'.format(
+                logger.info('cls: {} cost: {} MACC: {} mean:{}'.format(
                     cls, cost, ap_scores, ap_scores.mean()))
-                logger.info('Saving cls cost AP to: {}'.format(ap_out_file))
+                logger.info('Saving cls cost MACC to: {}'.format(ap_out_file))
                 np.save(ap_out_file, np.array([ap_scores.mean()]))
                 logger.info('Saving SVM model to: {}'.format(out_file))
                 with open(out_file, 'wb') as fwrite:

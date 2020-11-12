@@ -39,7 +39,7 @@ def get_chosen_costs(opts, num_classes):
     for cls in range(num_classes):
         for cost_idx in range(len(costs_list)):
             cost = costs_list[cost_idx]
-            _, ap_out_file = svm_helper.get_svm_train_output_files(
+            _, ap_out_file = svm_helper.get_svm_train_output_files_acc(
                 cls, cost, opts.output_path
             )
             train_ap_matrix[cls][cost_idx] = float(
@@ -49,15 +49,15 @@ def get_chosen_costs(opts, num_classes):
     chosen_cost = [costs_list[idx] for idx in argmax_cls]
     logger.info('chosen_cost: {}'.format(chosen_cost))
     np.save(
-        os.path.join(opts.output_path, 'crossval_ap.npy'),
+        os.path.join(opts.output_path, 'crossval_macc.npy'),
         np.array(train_ap_matrix)
     )
     np.save(
         os.path.join(opts.output_path, 'chosen_cost.npy'),
         np.array(chosen_cost)
     )
-    logger.info('saved crossval_ap AP to file: {}'.format(
-        os.path.join(opts.output_path, 'crossval_ap.npy')))
+    logger.info('saved crossval_macc AP to file: {}'.format(
+        os.path.join(opts.output_path, 'crossval_macc.npy')))
     logger.info('saved chosen costs to file: {}'.format(
         os.path.join(opts.output_path, 'chosen_cost.npy')))
     return np.array(chosen_cost)
@@ -78,6 +78,7 @@ def test_svm(opts):
     costs_list = get_chosen_costs(opts, num_classes)
 
     ap_matrix = np.zeros((num_classes, 1))
+    pred_matrix = np.zeros((features.shape[0], num_classes))
     for cls in range(num_classes):
         cost = costs_list[cls]
         logger.info('Testing model for cls: {} cost: {}'.format(cls, cost))
@@ -90,22 +91,21 @@ def test_svm(opts):
             else:
                 model = pickle.load(fopen, encoding='latin1')
         prediction = model.decision_function(features)
-        cls_labels = targets[:, cls]
-        # meaning of labels in VOC/COCO original loaded target files:
-        # label 0 = not present, set it to -1 as svm train target
-        # label 1 = present. Make the svm train target labels as -1, 1.
-        evaluate_data_inds = (targets[:, cls] != -1)
-        eval_preds = prediction[evaluate_data_inds]
-        eval_cls_labels = cls_labels[evaluate_data_inds]
-        eval_cls_labels[np.where(eval_cls_labels == 0)] = -1
-        P, R, score, ap = svm_helper.get_precision_recall(
-            eval_cls_labels, eval_preds
-        )
-        ap_matrix[cls][0] = ap
-    logger.info('Mean AP: {}'.format(np.mean(ap_matrix, axis=0)))
-    np.save(os.path.join(opts.output_path, 'test_ap.npy'), np.array(ap_matrix))
-    logger.info('saved test AP to file: {}'.format(
-        os.path.join(opts.output_path, 'test_ap.npy')))
+        pred_matrix[:, cls] = prediction
+
+    pred_labels = np.argmax(pred_matrix, 1)
+    cls_labels = targets[:, cls]
+    trgt_labels = np.argmax(targets, 1)
+
+    acc_array = svm_helper.get_class_accuracy(
+            trgt_labels, pred_labels
+    )
+    resp = np.mean(acc_array)
+
+    logger.info('Mean AP: {}'.format(resp))
+    np.save(os.path.join(opts.output_path, 'test_macc.npy'), np.array(acc_array))
+    logger.info('saved test MAP to file: {}'.format(
+        os.path.join(opts.output_path, 'test_macc.npy')))
 
 
 def main():

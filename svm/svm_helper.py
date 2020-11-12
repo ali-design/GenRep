@@ -16,6 +16,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 
 import logging
+import sklearn
 import numpy as np
 import os
 import sys
@@ -31,6 +32,12 @@ logger = logging.getLogger(__name__)
 def py2_py3_compatible_cost(cost):
     return str(float("{:.17f}".format(cost)))
 
+
+def get_svm_train_output_files_acc(cls, cost, output_path):
+    cls_cost = str(cls) + '_cost' + py2_py3_compatible_cost(cost)
+    out_file = os.path.join(output_path, 'cls' + cls_cost + '.pickle')
+    ap_matrix_out_file = os.path.join(output_path, 'ACC_cls' + cls_cost + '.npy')
+    return out_file, ap_matrix_out_file
 
 def get_svm_train_output_files(cls, cost, output_path):
     cls_cost = str(cls) + '_cost' + py2_py3_compatible_cost(cost)
@@ -80,6 +87,9 @@ def calculate_ap(rec, prec):
         ap = ap + (mrec[i] - mrec[i - 1]) * mpre[i]
     return ap
 
+def get_class_accuracy(targets, preds):
+    matrix = sklearn.metrics.confusion_matrix(targets, preds)
+    return matrix.diagonal()/matrix.sum(axis=1)
 
 def get_precision_recall(targets, preds):
     """

@@ -18,7 +18,7 @@ from torchvision import transforms, datasets
 # from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from torchnet.meter import mAPMeter
 # from util import set_optimizer
-from util import VOCDetectionDataset
+from util import VOCDetectionDataset, Caltech101
 from networks.resnet_big import SupConResNet, LinearClassifier
 
 try:
@@ -57,7 +57,7 @@ def parse_option():
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet', 'voc2007'], help='dataset')
+                choices=['caltech101', 'biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet', 'voc2007'], help='dataset')
 
     # other setting
     parser.add_argument('--cosine', action='store_true',
@@ -114,6 +114,9 @@ def parse_option():
     elif opt.dataset == 'voc2007':
         opt.img_size = 128
         opt.n_cls = 20
+    elif opt.dataset == 'caltech101':
+        opt.img_size = 128
+        opt.n_cls = 101
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
 
@@ -122,13 +125,14 @@ def parse_option():
 
 def set_loader(opt):
     # construct data loader
+    print(opt.dataset)
     if opt.dataset == 'cifar10':
         mean = (0.4914, 0.4822, 0.4465)
         std = (0.2023, 0.1994, 0.2010)
     elif opt.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
-    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet' or opt.dataset == 'voc2007':
+    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet' or opt.dataset == 'voc2007' or opt.dataset == 'caltech101':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     else:
@@ -149,7 +153,7 @@ def set_loader(opt):
             transforms.ToTensor(),
             normalize,
         ])
-    elif opt.dataset == "voc2007":
+    elif opt.dataset == "voc2007" or opt.dataset == 'caltech101':
 
         train_transform = transforms.Compose([
             transforms.Resize(opt.img_size),
@@ -192,6 +196,15 @@ def set_loader(opt):
                                               year='2007',
                                               image_set='val',
                                               transform=val_transform)
+    elif opt.dataset == 'caltech101':
+        train_dataset = Caltech101(root=opt.data_folder,
+                                   split='train',
+                                   transform=val_transform)
+
+
+        val_dataset = Caltech101(root=opt.data_folder,
+                split='val',
+                                   transform=val_transform)
 
     else:
         raise ValueError(opt.dataset)
@@ -257,9 +270,7 @@ def extract(val_loader, model, opt):
         for idx, (images, labels) in enumerate(tqdm(val_loader)):
             images = images.float().cuda()
             labels = labels.cuda()
-            
             output = model.encoder(images)
-            # ipdb.set_trace()
             fts_all.append(output.cpu().numpy())
             labels_all.append(labels.cpu().numpy())
 
@@ -281,9 +292,10 @@ def main():
     # optimizer = set_optimizer(opt, classifier)
 
     # training routine
-    features_folder = 'data_{}_{}'.format(opt.dataset, mode)
-    f1 = '../../scratch/features/{}/train.npz'.format(features_folder)
-    f2 = '../../scratch/features/{}/val.npz'.format(features_folder)
+    dataset = opt.dataset
+    features_folder = 'data_{}'.format(mode)
+    f1 = '../../scratch/features/{}/{}/train.npz'.format(dataset, features_folder)
+    f2 = '../../scratch/features/{}/{}/val.npz'.format(dataset, features_folder)
     fts_train, labels_train = extract(train_loader, model, opt)
     fts_val, labels_val = extract(val_loader, model, opt)
 
