@@ -33,7 +33,7 @@ def convert_to_images(obj):
         img.append(PIL.Image.fromarray(out_array))
     return img
 
-def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., seed=None, num_neighbors=20, scale):
+def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., seed=None, num_neighbors=20, scale=1.0):
     """ Create a truncated noise vector.
         Params:
             batch_size: batch size.
@@ -44,18 +44,25 @@ def truncated_noise_sample_neighbors(batch_size=1, dim_z=128, truncation=1., see
             array of shape (batch_size, dim_z)
     """
     list_results = []
+    list_results2 = []
     state = None if seed is None else np.random.RandomState(seed)
     values = truncnorm.rvs(-2, 2, size=(batch_size, dim_z), random_state=state).astype(np.float32)
     zs = truncation * values
     list_results.append(zs) # these are anchors
-
+    list_results2.append(zs)
+    
     state_neighbors = None if seed is None else np.random.RandomState(seed+1000)
     for i in range(num_neighbors):
         state_neighbors = None if seed is None else np.random.RandomState(seed+1000+i)
         values_neighbors = truncation * truncnorm.rvs(-2, 2, size=(batch_size, dim_z), scale=scale, random_state=state_neighbors).astype(np.float32)
-        list_results.append(zs + values_neighbors)
-
-    return list_results
+        zs_norm = np.linalg.norm(zs)
+        zs_new = zs + values_neighbors
+        zs_angular = zs_norm * zs_new/np.linalg.norm(zs_new)
+#         print('z_new.shape, zs_angular.shape:', zs_new.shape, zs_angular.shape)
+        list_results.append(zs_angular)
+        list_results2.append(zs_new)
+        
+    return list_results, list_results2
 
 def sample(opt):
     output_path = (os.path.join(opt.out_dir, 'biggan%dtr%d-%s_%s_%d_samples' %
@@ -75,44 +82,58 @@ def sample(opt):
     model = BigGAN.from_pretrained(model_name).cuda()
     
     list100 = os.listdir('/data/scratch-oc40/jahanian/ganclr_results/ImageNet100/train')
-    
     import random
     random.shuffle(imagenet_class_index_keys)
     for key in tqdm(imagenet_class_index_keys):
-
         if imagenet_class_index_dict[key][0] not in list100:
             continue
+
         class_dir_name = os.path.join(output_path, partition, imagenet_class_index_dict[key][0])
+        print(class_dir_name)
         if os.path.isdir(class_dir_name):
             continue
+
         os.makedirs(class_dir_name, exist_ok=True)
         idx = int(key)
         z_dict = dict()
+
         print('Generating images for class {}'.format(idx))
         class_vector = one_hot_from_int(idx, batch_size=nimg)
         seed = start_seed + idx
-        noise_vector_neighbors = truncated_noise_sample_neighbors(truncation=truncation,
+        noise_vector_neighbors, nvn2 = truncated_noise_sample_neighbors(truncation=truncation,
                                                         batch_size=nimg,
-                                                        seed=seed, num_neighbors=opt.num_neighbors
-                                                                 scale=opt.std)
+                                                        seed=seed, num_neighbors=opt.num_neighbors)
         class_vector = torch.from_numpy(class_vector).cuda()
         for ii in range(len(noise_vector_neighbors)):
             noise_vector = noise_vector_neighbors[ii]
             noise_vector = torch.from_numpy(noise_vector).cuda()
+            nv2 = nvn2[ii]
+            nv2 = torch.from_numpy(nv2).cuda()
             for batch_start in range(0, nimg, batch_size):
                 s = slice(batch_start, min(nimg, batch_start + batch_size))
 
                 with torch.no_grad():
                     output = model(noise_vector[s], class_vector[s], truncation)
+                    output2 = model(nv2[s], class_vector[s], truncation)
+                    
                 output = output.cpu()
                 ims = convert_to_images(output)
+                output2 = output2.cpu()
+                ims2 = convert_to_images(output2)
                 for i, im in enumerate(ims):
                     if ii == 0: #anchors
                         im_name = 'seed%04d_sample%05d_anchor.%s' % (seed, batch_start+i, imformat)
+                        im.save(os.path.join(class_dir_name, im_name))
+                        z_dict[im_name] = [noise_vector[batch_start+i].cpu().numpy(), idx]
                     else:
-                        im_name = 'seed%04d_sample%05d_1.0_%d.%s' % (seed, batch_start+i, ii, imformat)
-                    im.save(os.path.join(class_dir_name, im_name))
-                    z_dict[im_name] = [noise_vector[batch_start+i].cpu().numpy(), idx]
+                        im_name1 = 'seed%04d_sample%05d_ang_%d.%s' % (seed, batch_start+i, ii, imformat)
+                        im.save(os.path.join(class_dir_name, im_name1))
+                        z_dict[im_name1] = [noise_vector[batch_start+i].cpu().numpy(), idx]
+                        im_name2 = 'seed%04d_sample%05d_iso_%d.%s' % (seed, batch_start+i, ii, imformat)
+                        im2 = ims2[i]
+                        im2.save(os.path.join(class_dir_name, im_name2))
+                        z_dict[im_name2] = [nv2[batch_start+i].cpu().numpy(), idx]
+                        
         with open(os.path.join(class_dir_name, 'z_dataset.pkl'), 'wb') as fid:
             pickle.dump(z_dict,fid)
 
@@ -124,11 +145,10 @@ if __name__ == '__main__':
     parser.add_argument('--size', default=256, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--imformat', default='png', type=str)
-    parser.add_argument('--num_imgs', default=1300, type=int, help='num imgs per class')
+    parser.add_argument('--num_imgs', default=10, type=int, help='num imgs per class')
     parser.add_argument('--start_seed', default=0, type=int)
-    parser.add_argument('--num_neighbors', default=20, type=int, help='num samples per anchor')
-    parser.add_argument('--std', default=1.0, type=float, help='std for isotropic gaussian')
-    parser.add_argument('--desc', default='steer_rnd_std4.0_100', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
+    parser.add_argument('--scale', default=1.0, type=int, help='scale of std')
+    parser.add_argument('--num_neighbors', default=10, type=int, help='num samples per anchor')
+    parser.add_argument('--desc', default='paper_figure', type=str, help='this will be the tag of this specfic dataset, added to the end of the dataset name')
     opt = parser.parse_args()
-    opt.desc += 'std' + str(opt.std)
     sample(opt)

@@ -364,9 +364,9 @@ class GansetDataset(Dataset):
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
         print("Listing images...")
         self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
-        indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
         # maks sure we only work on 1300 samples per class (for consistency with imagenet100)
-        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
+#         indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
+#         self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
 
@@ -448,9 +448,9 @@ class GansteerDataset(Dataset):
         # get list of nalpha images
         self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
         print("Loading data...")
-        indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
         # Make sure there are at most 1300 images per class
-        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
+        # indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
+        # self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
         
