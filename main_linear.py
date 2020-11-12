@@ -242,7 +242,7 @@ def set_model(opt):
         criterion = criterion.cuda()
         cudnn.benchmark = True
         # ipdb.set_trace()
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict,  strict=False)
 
     return model, classifier, criterion
 
@@ -272,6 +272,7 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
         # compute loss
         with torch.no_grad():
             features = model.encoder(images)
+        import ipdb
         output = classifier(features.detach())
         loss = criterion(output, labels)
 

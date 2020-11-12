@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import numpy as np
+import ipdb
 import os
 import sys
 import argparse
@@ -42,6 +43,7 @@ def parse_option():
     parser.add_argument('--epochs', type=int, default=200,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
+    parser.add_argument('--resume', default='', type=str, help='whether to resume training')
 
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
@@ -66,7 +68,8 @@ def parse_option():
                         help='num of workers to use')
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
-    parser.add_argument('--walk_method', type=str, choices=['none', 'random', 'steer', 'pca'], help='choose method')
+    parser.add_argument('--walk_method', type=str, help='choose method')
+    parser.add_argument('--removeimtf', action='store_true', help='whether we want to remove simclr transforms')
 
     # temperature
     parser.add_argument('--temp', type=float, default=0.1,
@@ -106,13 +109,17 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.numcontrast, opt.learning_rate, 
+    opt.model_name = '{}_{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
+    if opt.removeimtf:
+        opt.model_name = '{}_noimtf'.format(opt.model_name)
 
     if opt.cosine:
         opt.model_name = '{}_cosine'.format(opt.model_name)
+
+
 
     opt.model_name = '{}_{}'.format(opt.model_name, os.path.basename(opt.data_folder))
     # warm-up for large-batch training,
@@ -163,17 +170,24 @@ def set_loader(opt):
     normalize = transforms.Normalize(mean=mean, std=std)
     opt.mean = mean
     opt.std = std
-
-    train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomApply([
-            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
-        ], p=0.8),
-        transforms.RandomGrayscale(p=0.2),
-        transforms.ToTensor(),
-        normalize,
-    ])
+    
+    if opt.removeimtf:
+        train_transform = transforms.Compose([
+            transforms.CenterCrop(size=int(opt.img_size*0.875)),
+            transforms.ToTensor(),
+            normalize,
+        ])
+    else:
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.ToTensor(),
+            normalize,
+        ])
 
     if opt.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(root=opt.data_folder,
@@ -184,19 +198,22 @@ def set_loader(opt):
                                           transform=TwoCropTransform(train_transform),
                                           download=True)
     elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
+        train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+                                    transform=TwoCropTransform(train_transform))
     elif opt.dataset == 'biggan':
-        if opt.walk_method == 'random':
-            train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                          transform=train_transform, numcontrast=opt.numcontrast)        
+        train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+                                      transform=train_transform, numcontrast=opt.numcontrast)        
 
-        elif opt.walk_method == 'steer':
-            train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                        transform=train_transform, numcontrast=opt.numcontrast)        
-        elif opt.walk_method == 'none':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
+        #if opt.walk_method == 'random':
+        #    train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+        #                                  transform=train_transform, numcontrast=opt.numcontrast)        
+
+        #elif opt.walk_method == 'steer':
+        #    train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+        #                                transform=train_transform, numcontrast=opt.numcontrast)        
+        #elif opt.walk_method == 'none':
+        #    train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+        #                                transform=TwoCropTransform(train_transform))
         ## Ali: ToDo: elif opt.walk_method == 'pca'...
     else:
         raise ValueError(opt.dataset)
@@ -369,7 +386,14 @@ def main():
     logger = tb_logger.Logger(logdir=opt.tb_folder, flush_secs=2)
 
     # training routine
-    for epoch in range(1, opt.epochs + 1):
+    init_epoch = 1
+    if len(opt.resume) > 0:
+        model_ckp = torch.load(opt.resume)
+        init_epoch = model_ckp['epoch'] + 1
+        model.load_state_dict(model_ckp['model'])
+        optimizer.load_state_dict(model_ckp['optimizer'])
+
+    for epoch in range(init_epoch, opt.epochs + 1):
         adjust_learning_rate(opt, optimizer, epoch)
 
         # train for one epoch

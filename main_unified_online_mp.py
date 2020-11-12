@@ -64,11 +64,17 @@ def parse_option():
                         help='save frequency')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch_size')
+
+    parser.add_argument('--batch_size_gen', type=int, default=86,
+                        help='batch_size')
+
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
     parser.add_argument('--epochs', type=int, default=200,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
+
+    parser.add_argument('--resume', default='', type=str, help='whether to resume training')
     parser.add_argument('--niter', type=int, default=256, help='number of iter for online sampling')
 
     # optimization
@@ -200,6 +206,7 @@ def set_loader(opt):
         normalize,
     ])
     dataset = OnlineGanDataset(train_transform, gan_model_name='biggan-deep-256', opt=opt)
+    dataset.offset_start = 85 * opt.niter 
     all_epochs_sampler = BatchSampler(SequentialSampler(dataset), batch_size=opt.batch_size_gen, drop_last=False)
     data_loader = DataLoader(dataset, batch_size=None, sampler=all_epochs_sampler, 
                              num_workers=opt.num_workers, worker_init_fn=worker_func, multiprocessing_context='spawn')
@@ -215,6 +222,7 @@ class OnlineGanDataset(Dataset):
 
         self.transform = transform
         self.gan_model_name = gan_model_name
+        self.offset_start = 0
         self.opt = opt
         self.gan_model = None
         self.func = functools.partial(trans_func, transform=transform)
@@ -252,7 +260,7 @@ class OnlineGanDataset(Dataset):
         std_scale = 1.0
         batch_size = len(indices)
         start_seed = 0
-        idx = indices[0]
+        idx = indices[0] + self.offset_start
         seed = start_seed + 2 * idx
         state = None if seed is None else np.random.RandomState(seed)
 
@@ -335,7 +343,9 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
             data_batch.append(data)
 
 
-        data = [torch.cat(tensor_val)[:opt.batch_size] for tensor_val in zip(*data_batch)]
+        data = [torch.cat(tensor_val) for tensor_val in zip(*data_batch)]
+        print(data[0].shape)
+        data = [tensor_val[:opt.batch_size] for tensor_val in data]
         if len(data) == 2:
             images = data[0]
             labels = data[1]
@@ -437,7 +447,8 @@ def main():
     
     # One GPU is used for consuming, the rest for generating
     num_gpus = torch.cuda.device_count() - 1
-    opt.batch_size_gen = opt.batch_size // (num_gpus)
+    if opt.batch_size_gen == -1:
+        opt.batch_size_gen = math.ceil(opt.batch_size / (num_gpus))
 
     # build data loader
     # opt.encoding_type tells us how to get training data
@@ -462,7 +473,15 @@ def main():
 
     # training routine
     train_loader_iterator = iter(train_loader)
-    for epoch in range(1, opt.epochs + 1):
+    init_epoch = 1
+
+    if len(opt.resume) > 0:
+        model_ckp = torch.load(opt.resume)
+        init_epoch = model_ckp['epoch'] + 1
+        model.load_state_dict(model_ckp['model'])
+        optimizer.load_state_dict(model_ckp['optimizer'])
+
+    for epoch in range(init_epoch, opt.epochs + 1):
         adjust_learning_rate(opt, optimizer, epoch)
 
         # train for one epoch

@@ -293,10 +293,10 @@ def train(train_transform, model, criterion, optimizer, epoch, opt, start_seed):
             anchor_out2 = model_biggan(zs, class_vector, truncation)
         print('generator used time:', time.time() - time_start_gen )        
         anchor_out2 = 255 * ((anchor_out2 + 1.0)/2.0)
-        anchor_out2 = anchor_out2.detach().cpu().numpy()
+        anchor_out2 = anchor_out2.detach().cpu()
 
-        anchor_out = anchor_out.astype(np.uint8)
-        anchor_out2 = anchor_out2.astype(np.uint8)
+        anchor_out = anchor_out.uint8()
+        anchor_out2 = anchor_out2.uint8()
         anchor_out = np.transpose(anchor_out, [0, 2, 3, 1])
         anchor_out2 = np.transpose(anchor_out2, [0, 2, 3, 1])
 

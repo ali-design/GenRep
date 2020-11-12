@@ -124,6 +124,68 @@ def save_model(model, optimizer, opt, epoch, save_file):
     torch.save(state, save_file)
     del state
 
+class Caltech101(datasets.Caltech101):
+    # See https://github.com/pytorch/vision/blob/master/torchvision/datasets/caltech.py
+    def __init__(self,
+                 root,
+                 split='train',
+                 target_type='category',
+                 transform=None,
+                 target_transform=None,
+                 download=False):
+        super(Caltech101, self).__init__(root, target_type, transform, target_transform, download)
+        self.index = []
+        self.split = split
+        self.y = []
+        self.random_seed = random.Random(0)
+        for (i, c) in enumerate(self.categories):
+            samples = sorted(os.listdir(os.path.join(self.root, "101_ObjectCategories", c)))
+            index_ims = list(range(1, len(samples)+1))
+            self.random_seed.shuffle(index_ims)
+            # https://arxiv.org/pdf/2002.05709.pdf
+            if self.split == 'train':
+                index_ims = index_ims[:30]
+            else:
+                index_ims = index_ims[30:]
+            n = len(index_ims)
+            self.index.extend(index_ims)
+            self.y.extend(n * [i])
+
+    def __getitem__(self, index: int):
+        """
+        Args:
+            index (int): Index
+        Returns:
+            tuple: (image, target) where the type of target specified by target_type.
+        """
+        import scipy.io
+
+        img = Image.open(os.path.join(self.root,
+                                      "101_ObjectCategories",
+                                      self.categories[self.y[index]],
+                                      "image_{:04d}.jpg".format(self.index[index]))).convert('RGB')
+
+        target: Any = []
+        for t in self.target_type:
+            if t == "category":
+                target.append(self.y[index])
+            elif t == "annotation":
+                data = scipy.io.loadmat(os.path.join(self.root,
+                                                     "Annotations",
+                                                     self.annotation_categories[self.y[index]],
+                                                     "annotation_{:04d}.mat".format(self.index[index])))
+                target.append(data["obj_contour"])
+        target = tuple(target) if len(target) > 1 else target[0]
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        target_onehot = np.zeros(101)
+        target_onehot[target] = 1
+
+        return img, target_onehot
 
 class VOCDetectionDataset(datasets.VOCDetection):
     def __init__(self,

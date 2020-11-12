@@ -103,7 +103,7 @@ def parse_option():
         opt.img_size = 32
         opt.n_cls = 100
     elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-        opt.img_size = 256 # for GAN encoder, we keep it 256 unless later when we want to train the GAN encoder it on 112x112
+        opt.img_size = 128 # for GAN encoder, we keep it 256 unless later when we want to train the GAN encoder it on 112x112
         opt.n_cls = 1000
     elif opt.dataset == 'voc2007':
         opt.img_size = 128
@@ -132,8 +132,8 @@ def set_loader(opt):
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         train_transform = transforms.Compose([
             transforms.Resize((opt.img_size, opt.img_size)),
-            # transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
-            # transforms.RandomHorizontalFlip(),
+             transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
+             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ])
@@ -147,7 +147,6 @@ def set_loader(opt):
     elif opt.dataset == "voc2007":
 
         train_transform = transforms.Compose([
-            transforms.Resize(opt.img_size),
             transforms.RandomResizedCrop(int(opt.img_size*0.875), scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -227,9 +226,11 @@ def set_model(opt):
     classifier = LinearClassifier(name=opt.model, num_classes=opt.n_cls)
 
     ckpt = torch.load(opt.ckpt, map_location='cpu')
-    # state_dict = ckpt['model'] 
+    state_dict = ckpt['model'] 
 
-    pretrained_dict = ckpt['state_dict']
+    #pretrained_dict = ckpt['state_dict']
+    pretrained_dict = state_dict
+    ipdb.set_trace()
     pretrained_dict['stem.0.weight'] = pretrained_dict['conv1.weight']
     pretrained_dict['stem.1.weight'] = pretrained_dict['bn1.weight']
     pretrained_dict['stem.1.bias'] = pretrained_dict['bn1.bias']
@@ -240,24 +241,25 @@ def set_model(opt):
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_encoder_dict}
     model_encoder_dict.update(pretrained_dict) 
     model.encoder.load_state_dict(model_encoder_dict)
+    ipdb.set_trace()
 
 
     if torch.cuda.is_available():
         if torch.cuda.device_count() > 1:
             model.encoder = torch.nn.DataParallel(model.encoder)
-        # else:
-        #     new_state_dict = {}
-        #     for k, v in state_dict.items():
-        #         k = k.replace("module.", "")
-        #         new_state_dict[k] = v
-        #     state_dict = new_state_dict
+        #else:
+        #    new_state_dict = {}
+        #    for k, v in state_dict.items():
+        #        k = k.replace("module.", "")
+        #        new_state_dict[k] = v
+        #    state_dict = new_state_dict
 
         model = model.cuda()
         classifier = classifier.cuda()
         criterion = criterion.cuda()
         cudnn.benchmark = True
         # ipdb.set_trace()
-        # model.load_state_dict(state_dict, strict=False)
+        #model.load_state_dict(state_dict, strict=False)
 
     return model, classifier, criterion
 
@@ -276,6 +278,7 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
     end = time.time()
     for idx, (images, labels) in enumerate(train_loader):
         data_time.update(time.time() - end)
+        #ipdb.set_trace()
 
         images = images.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
