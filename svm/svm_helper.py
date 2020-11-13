@@ -33,6 +33,12 @@ def py2_py3_compatible_cost(cost):
     return str(float("{:.17f}".format(cost)))
 
 
+def get_logre_train_output_files(cost, output_path):
+    cls_cost = 'cost' + py2_py3_compatible_cost(cost)
+    out_file = os.path.join(output_path, cls_cost + '.pickle')
+    ap_matrix_out_file = os.path.join(output_path, 'ACC_' + cls_cost + '.npy')
+    return out_file, ap_matrix_out_file
+
 def get_svm_train_output_files_acc(cls, cost, output_path):
     cls_cost = str(cls) + '_cost' + py2_py3_compatible_cost(cost)
     out_file = os.path.join(output_path, 'cls' + cls_cost + '.pickle')

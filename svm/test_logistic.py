@@ -35,18 +35,17 @@ logger = logging.getLogger(__name__)
 
 def get_chosen_costs(opts, num_classes):
     costs_list = svm_helper.parse_cost_list(opts.costs_list)
-    train_ap_matrix = np.zeros((num_classes, len(costs_list)))
-    for cls in range(num_classes):
-        for cost_idx in range(len(costs_list)):
-            cost = costs_list[cost_idx]
-            _, ap_out_file = svm_helper.get_svm_train_output_files_acc(
-                cls, cost, opts.output_path
-            )
-            train_ap_matrix[cls][cost_idx] = float(
-                np.load(ap_out_file, encoding='latin1')[0]
-            )
-    argmax_cls = np.argmax(train_ap_matrix, axis=1)
-    chosen_cost = [costs_list[idx] for idx in argmax_cls]
+    train_ap_matrix = np.zeros(len(costs_list))
+    for cost_idx in range(len(costs_list)):
+        cost = costs_list[cost_idx]
+        _, ap_out_file = svm_helper.get_logre_train_output_files(
+            cost, opts.output_path
+        )
+        train_ap_matrix[cost_idx] = float(
+            np.load(ap_out_file, encoding='latin1')[0]
+        )
+    argmax_cost = np.argmax(train_ap_matrix)
+    chosen_cost = costs_list[argmax_cost]
     logger.info('chosen_cost: {}'.format(chosen_cost))
     np.save(
         os.path.join(opts.output_path, 'crossval_macc.npy'),
@@ -60,7 +59,7 @@ def get_chosen_costs(opts, num_classes):
         os.path.join(opts.output_path, 'crossval_macc.npy')))
     logger.info('saved chosen costs to file: {}'.format(
         os.path.join(opts.output_path, 'chosen_cost.npy')))
-    return np.array(chosen_cost)
+    return np.array([chosen_cost])
 
 
 def test_svm(opts):
@@ -77,24 +76,21 @@ def test_svm(opts):
     # get the chosen cost that maximizes the cross-validation AP per class
     costs_list = get_chosen_costs(opts, num_classes)
 
-    ap_matrix = np.zeros((num_classes, 1))
-    pred_matrix = np.zeros((features.shape[0], num_classes))
-    for cls in range(num_classes):
-        cost = costs_list[cls]
-        logger.info('Testing model for cls: {} cost: {}'.format(cls, cost))
-        model_file = os.path.join(
-            opts.output_path, 'cls' + str(cls) + '_cost' + str(cost) + '.pickle'
-        )
-        with open(model_file, 'rb') as fopen:
-            if six.PY2:
-                model = pickle.load(fopen)
-            else:
-                model = pickle.load(fopen, encoding='latin1')
-        prediction = model.decision_function(features)
-        pred_matrix[:, cls] = prediction
+    cost = costs_list[0]
+    logger.info('Testing model cost: {}'.format(cost))
+    model_file = os.path.join(
+        opts.output_path, 'cost' + str(cost) + '.pickle'
+    )
+    with open(model_file, 'rb') as fopen:
+        if six.PY2:
+            model = pickle.load(fopen)
+        else:
+            model = pickle.load(fopen, encoding='latin1')
+    prediction = model.decision_function(features)
+    pdb.set_trace()
 
-    pred_labels = np.argmax(pred_matrix, 1)
-    cls_labels = targets[:, cls]
+
+    pred_labels = np.argmax(prediction, 1)
     trgt_labels = np.argmax(targets, 1)
 
     acc_array = svm_helper.get_class_accuracy(

@@ -11,9 +11,11 @@ import numpy as np
 sys.path.append('../')
 
 import torch
+from torch import nn
 import torch.backends.cudnn as cudnn
 # from sklearn import svm
 from torchvision import transforms, datasets
+from torchvision.models import resnet50
 # from util import AverageMeter
 # from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from torchnet.meter import mAPMeter
@@ -203,7 +205,7 @@ def set_loader(opt):
 
 
         val_dataset = Caltech101(root=opt.data_folder,
-                split='val',
+                                   split='val',
                                    transform=val_transform)
 
     else:
@@ -223,6 +225,11 @@ def set_model(opt):
     if opt.model_weight != 'pretrained':
         model = SupConResNet(name=opt.model, img_size=opt.img_size)
     else:
+        if opt.model_weight == 'pretrained':
+            model = resnet50(pretrained=True).cuda()
+            modules = list(model.children())[:-1]
+            model = nn.Sequential(*modules)
+
         if opt.model_weight == 'scratch':
             pass
 
@@ -270,7 +277,11 @@ def extract(val_loader, model, opt):
         for idx, (images, labels) in enumerate(tqdm(val_loader)):
             images = images.float().cuda()
             labels = labels.cuda()
-            output = model.encoder(images)
+
+            if opt.model_weight == 'pretrained':
+                output = model(images).squeeze(-1).squeeze(-1)
+            else:
+                output = model.encoder(images)
             fts_all.append(output.cpu().numpy())
             labels_all.append(labels.cpu().numpy())
 
