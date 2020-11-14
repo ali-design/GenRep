@@ -621,3 +621,69 @@ class GansteerDataset(Dataset):
 #             image_neighbor = self.transform(image_neighbor)
 
 #         return image, image_neighbor, label
+
+
+class MixDataset(Dataset):
+    """The idea is to randomly load data from bigbigan100"""
+
+    def __init__(self, root_dir, mix_ratio, transform=None):
+        """
+        Args:
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+            mix_ratio: how much from fake images (from bigbigan100)
+        """
+        super(MixDataset, self).__init__()
+        self.root_dir = root_dir
+        self.root_dir_fake = '/data/vision/phillipi/ganclr/datasets/bigbigan100/train'
+        self.transform = transform
+        self.mix_ratio = mix_ratio
+        self.classes, self.class_to_idx = self._find_classes(self.root_dir)
+
+        # get list of real images
+        print("Listing real images...")
+        self.imglist = glob.glob(os.path.join(self.root_dir, '*/*.JPEG')) #n01558993_3482.JPEG
+        self.dir_size = len(self.imglist)
+        print('Length of real images list: {}'.format(self.dir_size))
+        
+        # get list of anchor of fake images
+        print("Listing fake images...")
+        self.imglist_fake = glob.glob(os.path.join(self.root_dir_fake, '*/*_anchor.png'))
+        self.dir_fake_size = len(self.imglist_fake)
+        print('Length of fake iamges list: {}'.format(self.dir_fake_size))
+
+    def _find_classes(self, root_dir):
+        classes = glob.glob('{}/*'.format(root_dir))
+        print(root_dir)
+        classes = [x.split('/')[-1] for x in classes]
+        class_to_idx = {class_name: idx for idx, class_name in enumerate(classes)}
+
+        return classes, class_to_idx
+
+    def __len__(self):
+        
+        return self.dir_size
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        label = self.imglist[idx].split('/')[-2]
+        label = self.class_to_idx[label]
+
+        if np.random.uniform() < self.mix_ratio:
+            img_name = self.imglist_fake[idx]
+        else:
+            img_name = self.imglist[idx]
+#         print('Loading img_name:', img_name)
+        
+        image = Image.open(img_name)
+        if len(np.array(image).shape) < 3:
+            # print(img_name, np.array(image).shape)
+            image = image.convert('RGB')
+
+
+        if self.transform:
+            image = self.transform(image)
+        
+        return [image, label]

@@ -14,7 +14,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
-from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
+from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset, MixDataset
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from util import set_optimizer, save_model
 from networks.resnet_big import SupConResNet, SupCEResNet
@@ -61,6 +61,7 @@ def parse_option():
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
                         choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+    parser.add_argument('--mix_ratio', type=float, default=0, help='e.g. 0.5 means mix imagenet100 with 50% data from bibiggan100')
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
@@ -119,9 +120,11 @@ def parse_option():
     if opt.cosine:
         opt.model_name = '{}_cosine'.format(opt.model_name)
 
-
-
     opt.model_name = '{}_{}'.format(opt.model_name, os.path.basename(opt.data_folder))
+    
+    if opt.mix_ratio > 0:
+        opt.model_name = '{}_mix_ratio{}'.format(opt.model_name, int(opt.mix_ratio*100))
+        
     # warm-up for large-batch training,
     if opt.batch_size > 256:
         opt.warm = True
@@ -198,8 +201,13 @@ def set_loader(opt):
                                           transform=TwoCropTransform(train_transform),
                                           download=True)
     elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-        train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                    transform=TwoCropTransform(train_transform))
+        if opt.mix_ratio == 0:
+            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+                                        transform=TwoCropTransform(train_transform))
+        else:
+            train_dataset = MixDataset(root_dir=os.path.join(opt.data_folder, 'train'), mix_ratio=opt.mix_ratio,
+                                       transform=TwoCropTransform(train_transform))
+
     elif opt.dataset == 'biggan':
         train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
                                       transform=train_transform, numcontrast=opt.numcontrast)        
@@ -280,7 +288,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             labels = data[2]
         else:
             raise NotImplementedError
-        
+        # print('images[0].shape, images[1].shape', images[0].shape, images[1].shape)
         data_time.update(time.time() - end)
         if opt.encoding_type != 'contrastive':
             # We only pick one of images
