@@ -1,0 +1,5 @@
+detectron2/*
+ckpts/*
+output/*
+outputs/*
+
