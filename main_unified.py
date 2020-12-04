@@ -59,9 +59,9 @@ def parse_option():
 
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
-    parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
-    parser.add_argument('--mix_ratio', type=float, default=0, help='e.g. 0.5 means mix imagenet100 with 50% data from bibiggan100')
+    parser.add_argument('--dataset', type=str, default='gan',
+                        choices=['gan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+    parser.add_argument('--mix_ratio', type=float, default=0, help='e.g. 0.5 means mix imagenet100 with 50% data from bigbigan100')
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
@@ -102,8 +102,8 @@ def parse_option():
         opt.model_path = os.path.join(opt.cache_folder, 'SupCE/{}_models'.format(opt.dataset))
         opt.tb_path = os.path.join(opt.cache_folder, 'SupCE/{}_tensorboard'.format(opt.dataset))
     else:
-        opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
-        opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
+        opt.model_path = os.path.join(opt.cache_folder, '{}/{}_models'.format(opt.method, opt.dataset))
+        opt.tb_path = os.path.join(opt.cache_folder, '{}/{}_tensorboard'.format(opt.method, opt.dataset))
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
@@ -147,7 +147,7 @@ def parse_option():
     if not os.path.isdir(opt.save_folder):
         os.makedirs(opt.save_folder)
 
-    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    if opt.dataset == 'gan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         # or 256 as you like
         opt.img_size = 128
         opt.n_cls = 1000
@@ -165,7 +165,7 @@ def set_loader(opt):
     elif opt.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
-    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    elif opt.dataset == 'gan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     else:
@@ -208,7 +208,7 @@ def set_loader(opt):
             train_dataset = MixDataset(root_dir=os.path.join(opt.data_folder, 'train'), mix_ratio=opt.mix_ratio,
                                        transform=TwoCropTransform(train_transform))
 
-    elif opt.dataset == 'biggan':
+    elif opt.dataset == 'gan':
         train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
                                       transform=train_transform, numcontrast=opt.numcontrast)        
 

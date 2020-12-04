@@ -427,8 +427,8 @@ class GansetDataset(Dataset):
         print("Listing images...")
         self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
         # maks sure we only work on 1300 samples per class (for consistency with imagenet100)
-#         indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
-#         self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
+        indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
+        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
 
@@ -479,8 +479,8 @@ class GansetDataset(Dataset):
         if self.method == 'SupInv' or self.method == 'UnsupInv': # later can check for Unsupervised inverter will empty labels
             label_dict = self.imglist[idx].split('/')[-2]
             z_vect.append(self.z_dict[label_dict][os.path.basename(img_name)][0]) 
-            z_vect.append(self.z_dict[label_dict][os.path.basename(img_name_neighbor)][0])   
-            # z = np.random.normal(size=128).astype(np.float32)
+            z_vect.append(self.z_dict[label_dict][os.path.basename(img_name_neighbor)][0])
+           # z = np.random.normal(size=128).astype(np.float32)
             # z_vect.append(z)
             # z_vect.append(z)
             return image, image_neighbor, label, z_vect
@@ -511,8 +511,8 @@ class GansteerDataset(Dataset):
         self.imglist = glob.glob(os.path.join(self.root_dir, '*/*_anchor.png'))
         print("Loading data...")
         # Make sure there are at most 1300 images per class
-        # indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
-        # self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
+        #indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
+        #self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
         
@@ -678,9 +678,9 @@ class MixDataset(Dataset):
 #         print('Loading img_name:', img_name)
         
         image = Image.open(img_name)
-        if len(np.array(image).shape) < 3:
+        #if len(np.array(image).shape) < 3:
             # print(img_name, np.array(image).shape)
-            image = image.convert('RGB')
+        image = image.convert('RGB')
 
 
         if self.transform:
