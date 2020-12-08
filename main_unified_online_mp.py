@@ -127,8 +127,8 @@ def parse_option():
 
     # set the path according to the environment
     opt.data_folder = opt.data_folder
-    opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
-    opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
+    opt.model_path = os.path.join(opt.cache_folder, '{}_online/{}_models'.format(opt.method, opt.dataset))
+    opt.tb_path = os.path.join(opt.cache_folder, '{}_online/{}_tensorboard'.format(opt.method, opt.dataset))
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
@@ -167,8 +167,10 @@ def parse_option():
         os.makedirs(opt.save_folder)
 
     if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
-        # or 256 as you like
-        opt.img_size = 128
+        if opt.method == 'SimCLR':
+            opt.img_size = 128
+        else:
+            opt.img_size = 256
     elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
         opt.img_size = 32
 
@@ -226,7 +228,8 @@ class OnlineGanDataset(Dataset):
         self.opt = opt
         self.gan_model = None
         self.func = functools.partial(trans_func, transform=transform)
-        with open('./utils/imagenet100_class_index.json', 'rb') as fid:
+#         with open('./utils/imagenet100_class_index.json', 'rb') as fid: 
+        with open('./utils/imagenet_class_index.json', 'rb') as fid: 
             imagenet_class_index_dict = json.load(fid)
         self.idx_imagenet100 = list(map(int, list(imagenet_class_index_dict.keys())))
 
@@ -441,8 +444,10 @@ def trans_func(single_image, transform):
 
 def main():
     opt = parse_option()
+    
+    print('train config:', opt)
 
-    with open(os.path.join(opt.save_folder, 'optE.yml'), 'w') as f:
+    with open(os.path.join(opt.save_folder, 'train_config.yml'), 'w') as f:
         yaml.dump(vars(opt), f, default_flow_style=False)
     
     # One GPU is used for consuming, the rest for generating
@@ -452,7 +457,7 @@ def main():
 
     # build data loader
     # opt.encoding_type tells us how to get training data
-    opt.niter = 130000
+    opt.niter = 1300000
     opt.num_workers = min(opt.num_workers, torch.cuda.device_count() - 1)
     train_loader = set_loader(opt)
 
