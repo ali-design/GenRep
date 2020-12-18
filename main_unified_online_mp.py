@@ -170,7 +170,7 @@ def parse_option():
         if opt.method == 'SimCLR':
             opt.img_size = 128
         else:
-            opt.img_size = 256
+            opt.img_size = 128
     elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
         opt.img_size = 32
 
