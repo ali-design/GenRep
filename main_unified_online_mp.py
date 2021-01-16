@@ -70,12 +70,12 @@ def parse_option():
 
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=500,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
 
     parser.add_argument('--resume', default='', type=str, help='whether to resume training')
-    parser.add_argument('--niter', type=int, default=256, help='number of iter for online sampling')
+    parser.add_argument('--niter', type=int, default=0, help='number of iter for online sampling')
 
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
@@ -92,7 +92,7 @@ def parse_option():
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+            choices=['biggan', 'bigbigan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
@@ -135,7 +135,7 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}onlineMP_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+    opt.model_name = '{}_{}onlineMPindep_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
@@ -206,7 +206,8 @@ def set_loader(opt):
         normalize,
     ])
     dataset = OnlineGanDataset(train_transform, gan_model_name='biggan-deep-256', opt=opt)
-    dataset.offset_start = 85 * opt.niter 
+    # This is just in case the model got killed in some epoch
+    dataset.offset_start = 0 * opt.niter 
     all_epochs_sampler = BatchSampler(SequentialSampler(dataset), batch_size=opt.batch_size_gen, drop_last=False)
     data_loader = DataLoader(dataset, batch_size=None, sampler=all_epochs_sampler, 
                              num_workers=opt.num_workers, worker_init_fn=worker_func, multiprocessing_context='spawn')
@@ -255,6 +256,41 @@ class OnlineGanDataset(Dataset):
         return (self.opt.niter + skipped) * self.opt.epochs
     
     def __getitem__(self, indices):
+        self.lazy_init_gan()
+        truncation = 1.0
+        std_scale = 1.0
+        batch_size = len(indices)
+        start_seed = 0
+        idx = indices[0] + self.offset_start
+        seed = start_seed + 2 * idx
+        state = None if seed is None else np.random.RandomState(seed)
+
+        zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs = torch.from_numpy(zs)
+        zsold = zs
+        idx_cls = np.random.choice(self.idx_imagenet100, batch_size)
+        class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
+        class_vector = torch.from_numpy(class_vector)
+        zs = zs.cuda()
+        class_vector = class_vector.cuda()
+        #model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
+        with torch.no_grad():
+            anchor_out = self.gan_model(zs, class_vector, truncation)
+
+        seed = start_seed + 2 * idx + 1
+        state = None if seed is None else np.random.RandomState(seed)
+        zs2 = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs2 = torch.from_numpy(zs2).cuda()
+        with torch.no_grad():
+            anchor_out2 = self.gan_model(zs2, class_vector, truncation)
+
+        images_anchor = self.apply_im_transform(anchor_out)
+        images_anchor2 = self.apply_im_transform(anchor_out2)
+
+        return images_anchor, images_anchor2, idx_cls
+        
+
+    def __getitemgauss_(self, indices):
         self.lazy_init_gan()
         truncation = 1.0
         std_scale = 1.0
