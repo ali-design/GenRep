@@ -106,8 +106,8 @@ def parse_option():
         opt.tb_path = os.path.join(opt.cache_folder, '{}/{}_tensorboard'.format(opt.method, opt.dataset))
 
     else:
-        opt.model_path = os.path.join(opt.cache_folder, 'SupCon/{}_models'.format(opt.dataset))
-        opt.tb_path = os.path.join(opt.cache_folder, 'SupCon/{}_tensorboard'.format(opt.dataset))
+        opt.model_path = os.path.join(opt.cache_folder, '{}/{}_models'.format(opt.method, opt.dataset))
+        opt.tb_path = os.path.join(opt.cache_folder, '{}/{}_tensorboard'.format(opt.method, opt.dataset))
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
@@ -317,7 +317,9 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             images = images[1]
         elif opt.encoding_type == 'inverter':
             # We only pick one of images and that's anchor
-            images = images[0]
+#             images = images[0] # <== this is for pairing z_anchor and anchor
+            images = images[1] # <== this is for pairing z_anchor and anchor
+
             # also only pick z_vect[0] ToDo: if alwasy the case just send z anchor (channel 0) from loader, but make sure image is also images[0]
             z_vect = z_vect[0].cuda(non_blocking=True)       
 
@@ -354,7 +356,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             top1.update(acc1[0], bsz)
         elif opt.encoding_type == 'inverter':
             top1 = 0
-            output = model(images) # images.shape: [256, 3, 112, 112]
+            #print('images.shape:', images.shape)
+            output = model(images.cuda()) # images.shape: [256, 3, 112, 112]
             if opt.method == 'SupInv':
                 loss, loss_z, loss_y = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
             elif opt.method == 'UnsupInv':
