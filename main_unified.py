@@ -6,9 +6,9 @@ import os
 import sys
 import argparse
 import time
-import math
 
 import torchvision.utils as vutils
+import math
 import tensorboard_logger as tb_logger
 import torch
 import torch.backends.cudnn as cudnn
@@ -65,7 +65,10 @@ def parse_option():
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
-    parser.add_argument('--numcontrast', type=int, default=20,
+
+    parser.add_argument('--ratiodata', type=int, default=1,
+            help='ratio of the data')
+    parser.add_argument('--numcontrast', type=int, default=1,
                         help='num of workers to use')
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
@@ -110,8 +113,8 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
+    opt.model_name = '{}_{}_{}_{}_ncontrast.{}_ratiodata.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.ratiodata, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
     if opt.removeimtf:
@@ -210,7 +213,7 @@ def set_loader(opt):
 
     elif opt.dataset == 'gan':
         train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                      transform=train_transform, numcontrast=opt.numcontrast)        
+                transform=train_transform, numcontrast=opt.numcontrast, ratio_data=opt.ratiodata)        
 
         #if opt.walk_method == 'random':
         #    train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
