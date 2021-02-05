@@ -66,7 +66,7 @@ def parse_option():
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
 
-    parser.add_argument('--ratiodata', type=int, default=1,
+    parser.add_argument('--ratiodata', type=float, default=1.0,
             help='ratio of the data')
     parser.add_argument('--numcontrast', type=int, default=1,
                         help='num of workers to use')
