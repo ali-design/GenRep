@@ -402,7 +402,7 @@ class OnlineDataset():
 class GansetDataset(Dataset):
     """The idea is to load the anchor image and its neighbor"""
 
-    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None, numcontrast=5, method=None):
+    def __init__(self, root_dir, neighbor_std=1.0, transform=None, walktype='gaussian', uniformb=None, numcontrast=5, method=None, ratio_data=1):
         """
         Args:
             neighbor_std: std in the z-space
@@ -420,15 +420,25 @@ class GansetDataset(Dataset):
         self.walktype = walktype
         self.z_dict = dict()
         self.method = method
+        self.ratiodata = ratio_data
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
 
         # get list of anchor images
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
         print("Listing images...")
         self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
+        print("Listed")
+        if self.ratiodata == 1:
+            max_per_class = 1300
+        else:
+            max_per_class = int(1300 * self.ratiodata)
         # maks sure we only work on 1300 samples per class (for consistency with imagenet100)
-        indices = [int(x.split('sample')[1].split('_')[0]) for x in self.imglist]
-        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < 1300]
+        indices = [int(x.split('sample')[-1].split('_')[0]) for x in self.imglist]
+        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < max_per_class]
+
+        if self.ratiodata < 1.:
+            # Repeat the dataset to compensate for the lower number of images
+            self.imglist = self.imglist * int(1/self.ratiodata)
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))
 
