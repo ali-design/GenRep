@@ -403,8 +403,12 @@ def main():
         init_epoch = model_ckp['epoch'] + 1
         model.load_state_dict(model_ckp['model'])
         optimizer.load_state_dict(model_ckp['optimizer'])
+    
+    skip_epoch = 1
+    if opt.ratiodata > 1:
+        skip_epoch = int(opt.ratiodata)
 
-    for epoch in range(init_epoch, opt.epochs + 1):
+    for epoch in range(init_epoch, opt.epochs + 1, skip_epoch):
         adjust_learning_rate(opt, optimizer, epoch)
 
         # train for one epoch
