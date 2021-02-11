@@ -258,6 +258,8 @@ class OnlineGanDataset(Dataset):
         return (self.opt.niter + skipped) * self.opt.epochs
     
     def __getitem__(self, indices):
+        start_time = time.time()
+        
         self.lazy_init_gan()
         truncation = 1.0
         std_scale = 1.0
@@ -288,6 +290,8 @@ class OnlineGanDataset(Dataset):
 
         images_anchor = self.apply_im_transform(anchor_out)
         images_anchor2 = self.apply_im_transform(anchor_out2)
+
+        print('loader spent time', time.time() - start_time)
 
         return images_anchor, images_anchor2, idx_cls
 
