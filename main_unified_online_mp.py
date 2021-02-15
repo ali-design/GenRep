@@ -267,7 +267,8 @@ class OnlineGanDataset(Dataset):
         batch_size = len(indices)
         start_seed = 0
         idx = indices[0] + self.offset_start
-        seed = start_seed + 2 * idx
+#         seed = start_seed + 2 * idx
+        seed = None
         state = None if seed is None else np.random.RandomState(seed)
 
         zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
@@ -282,7 +283,8 @@ class OnlineGanDataset(Dataset):
         with torch.no_grad():
             anchor_out = self.gan_model(zs, class_vector, truncation)
 
-        seed = start_seed + 2 * idx + 1
+#         seed = start_seed + 2 * idx + 1
+        seed = None
         state = None if seed is None else np.random.RandomState(seed)
         zs2 = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
         zs2 = torch.from_numpy(zs2).cuda()

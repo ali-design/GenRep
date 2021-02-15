@@ -31,15 +31,14 @@ import io
 import IPython.display
 import PIL.Image
 from pprint import pformat
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
-import tensorflow_hub as hub
+# import tensorflow.compat.v1 as tf
+# tf.disable_v2_behavior()
+#import tensorflow_hub as hub
 from scipy.stats import truncnorm
-import utils_bigbigan as ubigbi
+#import utils_bigbigan as ubigbi
 from tqdm import tqdm
 import json
 import pickle
-from tensorflow.python.client import device_lib
 
 from pytorch_pretrained_biggan import (
     BigGAN,
@@ -71,12 +70,12 @@ def parse_option():
 
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=500,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
 
     parser.add_argument('--resume', default='', type=str, help='whether to resume training')
-    parser.add_argument('--niter', type=int, default=256, help='number of iter for online sampling')
+    parser.add_argument('--niter', type=int, default=0, help='number of iter for online sampling')
 
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
@@ -93,7 +92,7 @@ def parse_option():
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+            choices=['biggan', 'bigbigan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
@@ -136,7 +135,7 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}onlineMP_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+    opt.model_name = '{}_{}onlineMPindep_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
@@ -208,10 +207,9 @@ def set_loader(opt):
         transforms.ToTensor(),
         normalize,
     ])
-#     gan_model_name='biggan-deep-256'
-    gan_model_name = 'https://tfhub.dev/deepmind/bigbigan-resnet50/1'  # ResNet-50
-    dataset = OnlineGanDataset(train_transform, gan_model_name, opt=opt)
-    dataset.offset_start = 85 * opt.niter 
+    dataset = OnlineGanDataset(train_transform, gan_model_name='biggan-deep-256', opt=opt)
+    # This is just in case the model got killed in some epoch
+    dataset.offset_start = 0 * opt.niter 
     all_epochs_sampler = BatchSampler(SequentialSampler(dataset), batch_size=opt.batch_size_gen, drop_last=False)
     data_loader = DataLoader(dataset, batch_size=None, sampler=all_epochs_sampler, 
                              num_workers=opt.num_workers, worker_init_fn=worker_func, multiprocessing_context='spawn')
@@ -236,46 +234,10 @@ class OnlineGanDataset(Dataset):
             imagenet_class_index_dict = json.load(fid)
         self.idx_imagenet100 = list(map(int, list(imagenet_class_index_dict.keys())))
 
-
-    def get_available_gpus(self):
-        local_device_protos = device_lib.list_local_devices()
-        return [x.name for x in local_device_protos if x.device_type == 'GPU']
-
-#     def lazy_init_gan(self):
-#         if self.gan_model is None:
-#             print("initializing GAN", torch.cuda.device_count(), torch.cuda.current_device())
-#             module = hub.Module(self.gan_model_name)  # inference
-#             self.gpu_idx_current = torch.cuda.current_device()
-#             self.gan_model = ubigbi.BigBiGAN(module)
-#             self.gen_ph = self.gan_model.make_generator_ph()
-#             # Compute samples G(z) from encoder input z (`gen_ph`).
-#             self.gen_samples = self.gan_model.generate(self.gen_ph)
-#             ## Create a TensorFlow session and initialize variables
-#             init = tf.global_variables_initializer()
-#             self.sess = tf.Session()
-#             self.sess.run(init)
-#             print('lazy_init: get_available_gpus()', self.get_available_gpus())
-
     def lazy_init_gan(self):
-        start_time = time.time()
         if self.gan_model is None:
-            print("initializing GAN on {} GPUs, currently on GPU:{}".format(torch.cuda.device_count(),
-                                                                            torch.cuda.current_device()))
-            self.gpu_idx_current = torch.cuda.current_device()
-
-            with tf.device('/gpu:{}'.format(self.gpu_idx_current)):
-                module = hub.Module(self.gan_model_name)  # inference
-                self.gan_model = ubigbi.BigBiGAN(module)
-                self.gen_ph = self.gan_model.make_generator_ph()
-                self.gen_samples = self.gan_model.generate(self.gen_ph)
-            
-#                 self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=True))
-                self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-
-                init = tf.global_variables_initializer()
-                self.sess.run(init)
-            print('spent time to init device GPU:{} is {}'.format(torch.cuda.current_device(), time.time() - start_time))
-#             print('lazy_init: get_available_gpus()', self.get_available_gpus())
+            print("initializing GAN", torch.cuda.device_count(), torch.cuda.current_device())
+            self.gan_model = BigGAN.from_pretrained(self.gan_model_name).cuda() # <== or 'BigGAN-deep-128'
 
     def apply_im_transform(self, anchor_out):
         anchor_out = 255 * ((anchor_out + 1.0)/2.0)
@@ -298,58 +260,82 @@ class OnlineGanDataset(Dataset):
     
     def __getitem__(self, indices):
         start_time = time.time()
+        
         self.lazy_init_gan()
         truncation = 1.0
-        std_scale = 0.2
+        std_scale = 1.0
         batch_size = len(indices)
+        start_seed = 0
+        idx = indices[0] + self.offset_start
+        seed = start_seed + 2 * idx
+        state = None if seed is None else np.random.RandomState(seed)
+
+        zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs = torch.from_numpy(zs)
+        zsold = zs
+        idx_cls = np.random.choice(self.idx_imagenet100, batch_size)
+        class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
+        class_vector = torch.from_numpy(class_vector)
+        zs = zs.cuda()
+        class_vector = class_vector.cuda()
+        #model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
+        with torch.no_grad():
+            anchor_out = self.gan_model(zs, class_vector, truncation)
+
+        seed = start_seed + 2 * idx + 1
+        state = None if seed is None else np.random.RandomState(seed)
+        zs2 = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs2 = torch.from_numpy(zs2).cuda()
+        with torch.no_grad():
+            anchor_out2 = self.gan_model(zs2, class_vector, truncation)
+
+        images_anchor = self.apply_im_transform(anchor_out)
+        images_anchor2 = self.apply_im_transform(anchor_out2)
+
+        return images_anchor, images_anchor2, idx_cls
         
+
+    def __getitemgauss_(self, indices):
+        self.lazy_init_gan()
+        truncation = 1.0
+        std_scale = 1.0
+        batch_size = len(indices)
         start_seed = 0
         idx = indices[0] + self.offset_start
 #         seed = start_seed + 2 * idx
         seed = None
         state = None if seed is None else np.random.RandomState(seed)
-        zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 120), random_state=state).astype(np.float32)
-        feed_dict = {self.gen_ph: zs}
-#         print('__getitem__: get_available_gpus()', self.get_available_gpus())
 
-#         with tf.device('/device:GPU:{}'.format(self.gpu_idx_current)):
-        anchor_out = self.sess.run(self.gen_samples, feed_dict=feed_dict)
-        
-        anchor_out = np.transpose(anchor_out, (0, 3, 1, 2))
-        anchor_out = torch.from_numpy(anchor_out).cuda()
-        
-#         anchor_out = anchor_out[:,:,0:112, 0:112]
-#         ims = torch.tensor(anchor_out, dtype=torch.float32, device='cuda') #<== might need to manage between TF and those used for encoder
-#         images.append(ims)
-
-        
-#         zs = torch.from_numpy(zs)
+        zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs = torch.from_numpy(zs)
         zsold = zs
         idx_cls = np.random.choice(self.idx_imagenet100, batch_size)
-#         class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
-#         class_vector = torch.from_numpy(class_vector)
-#         zs = zs.cuda()
-#         class_vector = class_vector.cuda()
+        class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
+        class_vector = torch.from_numpy(class_vector)
+        zs = zs.cuda()
+        class_vector = class_vector.cuda()
         #model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
-#         with torch.no_grad():
-#             anchor_out = self.gan_model(zs, class_vector, truncation)
+        with torch.no_grad():
+            anchor_out = self.gan_model(zs, class_vector, truncation)
 
 #         seed = start_seed + 2 * idx + 1
         seed = None
         state = None if seed is None else np.random.RandomState(seed)
-        ws = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 120), scale=std_scale, random_state=state).astype(np.float32)
-        zs = zs + ws
-        feed_dict = {self.gen_ph: zs}
-#         with tf.device('/device:GPU:{}'.format(self.gpu_idx_current)):
-        anchor_out2 = self.sess.run(self.gen_samples, feed_dict=feed_dict)
-            
-        anchor_out2 = np.transpose(anchor_out2, (0, 3, 1, 2))
-        anchor_out2 = torch.from_numpy(anchor_out2).cuda()
-        
+        ws = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), scale=std_scale, random_state=state).astype(np.float32)
+        zs = zs + torch.from_numpy(ws).cuda()
+        with torch.no_grad():
+            anchor_out2 = self.gan_model(zs, class_vector, truncation)
+
         images_anchor = self.apply_im_transform(anchor_out)
         images_anchor2 = self.apply_im_transform(anchor_out2)
-#         print('loader spent time', time.time() - start_time)
+
+        print('loader spent time', time.time() - start_time)
+
         return images_anchor, images_anchor2, idx_cls
+
+
+
+
 
 def set_model(opt):
     if opt.encoding_type == 'contrastive':
@@ -403,7 +389,7 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
 
 
         data = [torch.cat(tensor_val) for tensor_val in zip(*data_batch)]
-#         print(data[0].shape)
+        print(data[0].shape)
         data = [tensor_val[:opt.batch_size] for tensor_val in data]
         if len(data) == 2:
             images = data[0]
@@ -515,7 +501,6 @@ def main():
     # opt.encoding_type tells us how to get training data
     opt.niter = 130000
     opt.num_workers = min(opt.num_workers, torch.cuda.device_count() - 1)
-#     opt.num_workers = 1
     train_loader = set_loader(opt)
 
     # build model and criterion
