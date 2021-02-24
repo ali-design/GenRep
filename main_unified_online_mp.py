@@ -262,14 +262,19 @@ class OnlineGanDataset(Dataset):
         return self.__getitemgauss__(indices)
 
     def __getitemindep__(self, indices):
+        start_time = time.time()
+        
         self.lazy_init_gan()
         truncation = 1.0
         std_scale = 1.0
         batch_size = len(indices)
         start_seed = 0
         idx = indices[0] + self.offset_start
-        seed = start_seed + 2 * idx
-        seed1 = torch.tensor([seed])
+
+        seed = None
+        #seed = start_seed + 2 * idx
+        seed1 = torch.tensor([seed if seed is not None else 0])
+
         state = None if seed is None else np.random.RandomState(seed)
 
         zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
@@ -285,7 +290,9 @@ class OnlineGanDataset(Dataset):
             anchor_out = self.gan_model(zs, class_vector, truncation)
 
         seed = start_seed + 2 * idx + 1
-        seed2 = torch.tensor([seed])
+        seed = None
+        seed2 = torch.tensor([seed if seed is not None else 0])
+
         state = None if seed is None else np.random.RandomState(seed)
         zs2 = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
         zs2 = torch.from_numpy(zs2).cuda()
