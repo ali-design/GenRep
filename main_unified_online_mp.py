@@ -135,7 +135,7 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}onlineMPindep_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+    opt.model_name = '{}_{}onlineMPgaussofflinegood1.0_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
             format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
@@ -259,6 +259,9 @@ class OnlineGanDataset(Dataset):
         return (self.opt.niter + skipped) * self.opt.epochs
     
     def __getitem__(self, indices):
+        return self.__getitemgauss__(indices)
+
+    def __getitemindep__(self, indices):
         start_time = time.time()
         
         self.lazy_init_gan()
@@ -267,44 +270,11 @@ class OnlineGanDataset(Dataset):
         batch_size = len(indices)
         start_seed = 0
         idx = indices[0] + self.offset_start
-#         seed = start_seed + 2 * idx
+
         seed = None
-        state = None if seed is None else np.random.RandomState(seed)
+        #seed = start_seed + 2 * idx
+        seed1 = torch.tensor([seed if seed is not None else 0])
 
-        zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
-        zs = torch.from_numpy(zs)
-        zsold = zs
-        idx_cls = np.random.choice(self.idx_imagenet100, batch_size)
-        class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
-        class_vector = torch.from_numpy(class_vector)
-        zs = zs.cuda()
-        class_vector = class_vector.cuda()
-        #model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
-        with torch.no_grad():
-            anchor_out = self.gan_model(zs, class_vector, truncation)
-
-#         seed = start_seed + 2 * idx + 1
-        seed = None
-        state = None if seed is None else np.random.RandomState(seed)
-        zs2 = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
-        zs2 = torch.from_numpy(zs2).cuda()
-        with torch.no_grad():
-            anchor_out2 = self.gan_model(zs2, class_vector, truncation)
-
-        images_anchor = self.apply_im_transform(anchor_out)
-        images_anchor2 = self.apply_im_transform(anchor_out2)
-
-        return images_anchor, images_anchor2, idx_cls
-        
-
-    def __getitemgauss_(self, indices):
-        self.lazy_init_gan()
-        truncation = 1.0
-        std_scale = 1.0
-        batch_size = len(indices)
-        start_seed = 0
-        idx = indices[0] + self.offset_start
-        seed = start_seed + 2 * idx
         state = None if seed is None else np.random.RandomState(seed)
 
         zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
@@ -320,18 +290,60 @@ class OnlineGanDataset(Dataset):
             anchor_out = self.gan_model(zs, class_vector, truncation)
 
         seed = start_seed + 2 * idx + 1
+        seed = None
+        seed2 = torch.tensor([seed if seed is not None else 0])
+
+        state = None if seed is None else np.random.RandomState(seed)
+        zs2 = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs2 = torch.from_numpy(zs2).cuda()
+        with torch.no_grad():
+            anchor_out2 = self.gan_model(zs2, class_vector, truncation)
+
+        images_anchor = self.apply_im_transform(anchor_out)
+        images_anchor2 = self.apply_im_transform(anchor_out2)
+
+        indices_offset = torch.tensor([x+self.offset_start for x in indices])
+        return images_anchor, images_anchor2, idx_cls, indices_offset, seed1, seed2
+        
+
+    def __getitemgauss__(self, indices):
+        self.lazy_init_gan()
+        truncation = 1.0
+        std_scale = 1.0
+        batch_size = len(indices)
+        start_seed = 0
+        idx = indices[0] + self.offset_start
+        idx = idx % self.opt.niter
+        seed = start_seed + 2 * idx
+        seed1 = torch.tensor([seed])
+        state = None if seed is None else np.random.RandomState(seed)
+
+        zs = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), random_state=state).astype(np.float32)
+        zs = torch.from_numpy(zs)
+        zsold = zs
+        idx_cls = np.random.choice(self.idx_imagenet100, batch_size)
+        class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
+        class_vector = torch.from_numpy(class_vector)
+        zs = zs.cuda()
+        class_vector = class_vector.cuda()
+        #model_biggan.to(f'cuda:{model_biggan.device_ids[0]}')
+        with torch.no_grad():
+            anchor_out = self.gan_model(zs, class_vector, truncation)
+
+        seed = start_seed + 2 * idx + 1
+        seed2 = torch.tensor([seed])
         state = None if seed is None else np.random.RandomState(seed)
         ws = truncation * truncnorm.rvs(-2, 2, size=(batch_size, 128), scale=std_scale, random_state=state).astype(np.float32)
+        #ws = state.normal(0., 1.1, size=(batch_size, 128)).astype(np.float32)
         zs = zs + torch.from_numpy(ws).cuda()
         with torch.no_grad():
             anchor_out2 = self.gan_model(zs, class_vector, truncation)
 
         images_anchor = self.apply_im_transform(anchor_out)
         images_anchor2 = self.apply_im_transform(anchor_out2)
+        indices_offset = torch.tensor([x+self.offset_start for x in indices])
 
-        print('loader spent time', time.time() - start_time)
-
-        return images_anchor, images_anchor2, idx_cls
+        return images_anchor, images_anchor2, idx_cls, indices_offset, seed1, seed2
 
 
 
@@ -377,8 +389,10 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
 
     print("Start train")
     count = opt.niter // opt.batch_size
+    # count = 1
     ratio_gen_to_consumer = math.ceil(opt.batch_size / opt.batch_size_gen)
     iter_num = 0
+    indices_all, seed1_all, seed2_all = [], [], []
     while iter_num < count:
         idx = iter_num
         iter_num += 1
@@ -386,11 +400,13 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
         for it in range(ratio_gen_to_consumer):
             data = next(data_loader_iterator)
             data_batch.append(data)
-
-
         data = [torch.cat(tensor_val) for tensor_val in zip(*data_batch)]
-        print(data[0].shape)
-        data = [tensor_val[:opt.batch_size] for tensor_val in data]
+        data = [tensor_val[:min(opt.batch_size, len(tensor_val))] for tensor_val in data]
+        data_all = data
+        data = data[:-3]
+        indices_all.append(data_all[-3])
+        seed1_all.append(data_all[-2])
+        seed2_all.append(data_all[-1])
         if len(data) == 2:
             images = data[0]
             labels = data[1]
@@ -470,12 +486,18 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
     other_metrics = {}
-
+    indices_all = torch.cat(indices_all)
+    seed1_all = torch.cat(seed1_all)
+    seed2_all = torch.cat(seed2_all)
+    other_metrics['indices'] = indices_all.tolist()
+    other_metrics['seed1'] = seed1_all.tolist()
+    other_metrics['seed2'] = seed2_all.tolist()
     if opt.encoding_type == 'crossentropy':
         other_metrics['top1_acc'] = top1.avg
 
     if opt.showimg:
         other_metrics['image'] = [ims[:8], anchors[:8]]
+
 
     return losses.avg, other_metrics
 
@@ -499,7 +521,7 @@ def main():
 
     # build data loader
     # opt.encoding_type tells us how to get training data
-    opt.niter = 1300000
+    opt.niter = 130000
     opt.num_workers = min(opt.num_workers, torch.cuda.device_count() - 1)
     train_loader = set_loader(opt)
 
@@ -553,6 +575,9 @@ def main():
                 grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
                 grid_images = grid_images[None, :].transpose(0,2,3,1)
                 logger.log_images(metric_name, grid_images, epoch)
+            elif metric_name in ['indices', 'seed1', 'seed2']:
+                logger.log_histogram(metric_name, metric_value, epoch)
+
             else:
                 logger.log_value(metric_name, metric_value, epoch)
 

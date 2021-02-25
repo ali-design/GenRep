@@ -223,6 +223,7 @@ def trans_func(single_image, transform):
     return transform(pil_image)
 
 class OnlineGanDataset(Dataset):
+    # On every gpu we will be starting a GAN, only once that will be generating the data
     def __init__(self, transform, gan_model_name, opt):
 
         self.transform = transform
@@ -269,13 +270,13 @@ class OnlineGanDataset(Dataset):
                 self.gen_ph = self.gan_model.make_generator_ph()
                 self.gen_samples = self.gan_model.generate(self.gen_ph)
             
-#                 self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=True))
+                # self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=True))
                 self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
                 init = tf.global_variables_initializer()
                 self.sess.run(init)
             print('spent time to init device GPU:{} is {}'.format(torch.cuda.current_device(), time.time() - start_time))
-#             print('lazy_init: get_available_gpus()', self.get_available_gpus())
+            # print('lazy_init: get_available_gpus()', self.get_available_gpus())
 
     def apply_im_transform(self, anchor_out):
         anchor_out = 255 * ((anchor_out + 1.0)/2.0)
@@ -289,6 +290,9 @@ class OnlineGanDataset(Dataset):
         return images_anchor
     
     def __len__(self):
+        # The size of the dataset is equal to the total number of images we will use, that is
+        # num_epochs * opt.niter
+
         #  Since we are skipping samples on every iteration
         # On every iteration we skip batch % batch_gen
         # niter / batch * batch mod batch_gen
@@ -297,12 +301,15 @@ class OnlineGanDataset(Dataset):
         return (self.opt.niter + skipped) * self.opt.epochs
     
     def __getitem__(self, indices):
+        # Get a batch of items + their gaussian neighbors
+
         start_time = time.time()
         self.lazy_init_gan()
         truncation = 1.0
         std_scale = 0.2
         batch_size = len(indices)
         
+        # Get the anchors first:
         start_seed = 0
         idx = indices[0] + self.offset_start
         seed = start_seed + 2 * idx
@@ -324,6 +331,9 @@ class OnlineGanDataset(Dataset):
 
         
 #         zs = torch.from_numpy(zs)
+
+        
+        # Get the neighbors: zs + ws
         zsold = zs
         idx_cls = np.random.choice(self.idx_imagenet100, batch_size)
 #         class_vector = one_hot_from_int(idx_cls, batch_size=batch_size)
@@ -390,20 +400,24 @@ def train(data_loader_iterator, model, criterion, optimizer, epoch, opt, start_s
     end = time.time()
 
     print("Start train")
+    # How many data_loader reads we need. We will be consuming opt.niter in this function
     count = opt.niter // opt.batch_size
+
+    # In order to get a batch of data [batch_size], we need to run the generator [ratio_gen_to_consumer] times
     ratio_gen_to_consumer = math.ceil(opt.batch_size / opt.batch_size_gen)
     iter_num = 0
     while iter_num < count:
         idx = iter_num
         iter_num += 1
         data_batch = []
+
+        # Get data from the generator
         for it in range(ratio_gen_to_consumer):
             data = next(data_loader_iterator)
             data_batch.append(data)
 
-
+        # Now we have a full batch of data
         data = [torch.cat(tensor_val) for tensor_val in zip(*data_batch)]
-#         print(data[0].shape)
         data = [tensor_val[:opt.batch_size] for tensor_val in data]
         if len(data) == 2:
             images = data[0]
@@ -507,15 +521,17 @@ def main():
         yaml.dump(vars(opt), f, default_flow_style=False)
     
     # One GPU is used for consuming, the rest for generating
+    # batch_size_gen: how many images each generator gpu is generating
     num_gpus = torch.cuda.device_count() - 1
     if opt.batch_size_gen == -1:
         opt.batch_size_gen = math.ceil(opt.batch_size / (num_gpus))
 
     # build data loader
     # opt.encoding_type tells us how to get training data
+
+    # niter: how many images we will use on every "epoch"
     opt.niter = 130000
     opt.num_workers = min(opt.num_workers, torch.cuda.device_count() - 1)
-#     opt.num_workers = 1
     train_loader = set_loader(opt)
 
     # build model and criterion
