@@ -279,8 +279,10 @@ class OnlineGanDataset(Dataset):
             # print('lazy_init: get_available_gpus()', self.get_available_gpus())
 
     def apply_im_transform(self, anchor_out):
-        anchor_out = 255 * ((anchor_out + 1.0)/2.0)
+#         anchor_out = 255 * ((anchor_out + 1.0)/2.0)
         anchor_out = anchor_out.detach().cpu().numpy()
+        anchor_out = (256. / 2.) * (anchor_out + 1.)
+        anchor_out = np.clip(anchor_out, 0, 255)
         anchor_out = anchor_out.astype(np.uint8)
         anchor_out = np.transpose(anchor_out, [0, 2, 3, 1])
         anchor_out =  np.split(anchor_out, anchor_out.shape[0])
