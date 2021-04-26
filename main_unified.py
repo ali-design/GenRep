@@ -40,7 +40,7 @@ def parse_option():
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=20,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
     parser.add_argument('--resume', default='', type=str, help='whether to resume training')
