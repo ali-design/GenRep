@@ -281,7 +281,18 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
     print("Start train")
+
+    # size_dataset should be 1.3M for imagenet1K and 130K for imagenet100
+    # we divide by ratio data cause that increases, but when ratio data < 1, it relicates
+    # the datset, and so size is the same as 1
+    size_dataset = len(train_loader.dataset) / max(opt.ratio_data, 1)
+
+    # how many iterations per epoch
+    iter_epoch = int(size_dataset / opt.batch_size)
     for idx, data in enumerate(train_loader):
+        if idx % iter_epoch == 0:
+            curr_epoch = epoch + (idx / iter_epoch)
+            adjust_learning_rate(opt, optimizer, curr_epoch)
 
         if len(data) == 2:
             images = data[0]
@@ -362,6 +373,38 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
                        epoch, idx + 1, len(train_loader), batch_time=batch_time,
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
+
+        if (idx+1) % iter_epoch == 0 or (idx+1) == len(train_loader):
+            curr_epoch = epoch + (idx / iter_epoch)
+            other_metrics = {}
+
+            if opt.encoding_type == 'crossentropy':
+                other_metrics['top1_acc'] = top1.avg
+            else:
+                if opt.showimg:
+                    other_metrics['image'] = [ims[:8], anchors[:8]]
+
+            
+            # tensorboard logger
+            logger.log_value('loss', loss, curr_epoch)
+            logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], curr_epoch)
+            for metric_name, metric_value in other_metrics.items():
+                if metric_name == 'image':
+                    images = metric_value
+                    anchors = images[0]
+                    otherims = images[1]
+                    bs = anchors.shape[0]
+                    grid_images = vutils.make_grid(
+                            torch.cat((anchors, otherims)), nrow=bs)
+                    grid_images *= np.array(opt.std)[:, None, None]
+                    grid_images += np.array(opt.mean)[:, None, None]
+                    grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
+                    grid_images = grid_images[None, :].transpose(0,2,3,1)
+                    logger.log_images(metric_name, grid_images, curr_epoch)
+                else:
+                    logger.log_value(metric_name, metric_value, curr_epoch)
+
+
     other_metrics = {}
 
     if opt.encoding_type == 'crossentropy':
@@ -369,6 +412,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     else:
         if opt.showimg:
             other_metrics['image'] = [ims[:8], anchors[:8]]
+
 
     return losses.avg, other_metrics
 
@@ -409,32 +453,12 @@ def main():
         skip_epoch = int(opt.ratiodata)
 
     for epoch in range(init_epoch, opt.epochs + 1, skip_epoch):
-        adjust_learning_rate(opt, optimizer, epoch)
 
         # train for one epoch
         time1 = time.time()
         loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
-
-        # tensorboard logger
-        logger.log_value('loss', loss, epoch)
-        logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
-        for metric_name, metric_value in other_metrics.items():
-            if metric_name == 'image':
-                images = metric_value
-                anchors = images[0]
-                otherims = images[1]
-                bs = anchors.shape[0]
-                grid_images = vutils.make_grid(
-                        torch.cat((anchors, otherims)), nrow=bs)
-                grid_images *= np.array(opt.std)[:, None, None]
-                grid_images += np.array(opt.mean)[:, None, None]
-                grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
-                grid_images = grid_images[None, :].transpose(0,2,3,1)
-                logger.log_images(metric_name, grid_images, epoch)
-            else:
-                logger.log_value(metric_name, metric_value, epoch)
 
         if epoch % opt.save_freq == 0:
             save_file = os.path.join(
