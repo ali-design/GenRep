@@ -1,0 +1,20 @@
+Listing images...
+Listed
+Length: 1300000
+Start train
+/data/vision/phillipi/ganclr/datasets/biggan-deep-256_tr1.0_steer_composite_pth_imagenet1000_N2/train
+Listing images...
+Listed
+Length: 1300000
+Start train
+Train: [1][10/5079]	BT 0.301 (3.590)	DT 0.000 (2.758)	loss 8.907 (8.919)
+Train: [1][20/5079]	BT 0.299 (2.542)	DT 0.000 (1.978)	loss 8.906 (8.913)
+Train: [1][30/5079]	BT 0.301 (1.795)	DT 0.000 (1.319)	loss 8.907 (8.911)
+Train: [1][40/5079]	BT 0.299 (1.789)	DT 0.000 (1.357)	loss 8.905 (8.910)
+Train: [1][50/5079]	BT 0.307 (1.825)	DT 0.000 (1.420)	loss 8.906 (8.908)
+Train: [1][60/5079]	BT 0.300 (1.571)	DT 0.000 (1.184)	loss 8.877 (8.906)
+Train: [1][70/5079]	BT 0.301 (1.619)	DT 0.000 (1.244)	loss 8.876 (8.902)
+Train: [1][80/5079]	BT 0.299 (1.454)	DT 0.000 (1.089)	loss 8.866 (8.898)
+Train: [1][90/5079]	BT 0.300 (1.522)	DT 0.000 (1.160)	loss 8.835 (8.890)
+Train: [1][100/5079]	BT 0.299 (1.571)	DT 0.000 (1.215)	loss 8.780 (8.884)
+Train: [1][110/5079]	BT 0.306 (1.455)	DT 0.000 (1.105)	loss 8.796 (8.877)

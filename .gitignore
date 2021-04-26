@@ -53,7 +53,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-
+*.txt
 # Translations
 *.mo
 *.pot
@@ -90,7 +90,7 @@ ipython_config.py
 
 # directories
 bigbigan_code
-
+utils/walk_weights_biggan_deep
 # pyenv
 .python-version
 
