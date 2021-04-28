@@ -422,7 +422,8 @@ def main():
 
     with open(os.path.join(opt.save_folder, 'optE.yml'), 'w') as f:
         yaml.dump(vars(opt), f, default_flow_style=False)
-
+    print(opt)
+    
     # build data loader
     # opt.encoding_type tells us how to get training data
     train_loader = set_loader(opt)

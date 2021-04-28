@@ -422,19 +422,27 @@ class GansetDataset(Dataset):
         self.method = method
         self.ratiodata = ratio_data
         self.classes, self.class_to_idx = self._find_classes(self.root_dir)
-
-        # get list of anchor images
+        self.imglist = []
+        
+        # get list of anchor images, first check if we have the list in a txt file ow list the images
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
-        print("Listing images...")
-        self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
-        print("Listed")
-        if self.ratiodata == 1:
-            max_per_class = 1300
+        imgList_filename = os.path.join(extra_rootdir, 'ratiodata{}_imgList.txt'.format(self.ratiodata))
+        if os.path.isfile(imgList_filename):
+            print('Listing images by reading from ', imgList_filename)
+            with open(imgList_filename, 'r') as fid:
+                self.imglist = fid.readlines()
+            self.imglist = [x.rstrip() for x in self.imglist]
         else:
-            max_per_class = int(1300 * self.ratiodata)
-        # maks sure we only work on 1300 samples per class (for consistency with imagenet100)
-        indices = [int(x.split('sample')[-1].split('_')[0]) for x in self.imglist]
-        self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < max_per_class]
+            print('Listing images...')
+            self.imglist = glob.glob(os.path.join(extra_rootdir, '*/*_anchor.png'))
+            print('Listed')
+            if self.ratiodata == 1:
+                max_per_class = 1300
+            else:
+                max_per_class = int(1300 * self.ratiodata)
+            # maks sure we only work on 1300 samples per class (for consistency with imagenet100)
+            indices = [int(x.split('sample')[-1].split('_')[0]) for x in self.imglist]
+            self.imglist = [imname for imname, ind in zip(self.imglist, indices) if ind < max_per_class]
 
         if self.ratiodata < 1.:
             # Repeat the dataset to compensate for the lower number of images

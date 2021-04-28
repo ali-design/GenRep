@@ -1,0 +1,29 @@
+import glob
+import os
+
+root_dir = '/data/vision/phillipi/ganclr/datasets/biggan-deep256_tr1.0_gauss1_std1.0_imagenet1000_N2/train'
+imgList = glob.glob(os.path.join(root_dir, '*/*_anchor.png'))
+
+with open(os.path.join(root_dir,'full_imgList.txt'), 'w') as fid:
+    for anchor_name in imgList:
+        fid.write(anchor_name+'\n')
+
+#trim
+ratio
+for 
+ratiodata = 0.1
+max_per_class = int(1300 * ratiodata)
+indices = [int(x.split('sample')[-1].split('_')[0]) for x in imgList]
+imgList = [imname for imname, ind in zip(imgList, indices) if ind < max_per_class]
+with open(os.path.join(root_dir,'ratiodata{}_imgList.txt'.format(ratiodata)), 'w') as fid:
+    for anchor_name in imgList:
+        fid.write(anchor_name+'\n')
+        
+#trim
+ratiodata = 0.5
+max_per_class = int(1300 * ratiodata)
+indices = [int(x.split('sample')[-1].split('_')[0]) for x in imgList]
+imgList = [imname for imname, ind in zip(imgList, indices) if ind < max_per_class]
+with open(os.path.join(root_dir,'ratiodata{}_imgList.txt'.format(ratiodata)), 'w') as fid:
+    for anchor_name in imgList:
+        fid.write(anchor_name+'\n')
