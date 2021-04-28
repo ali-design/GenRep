@@ -455,7 +455,7 @@ def main():
     if opt.ratiodata > 1:
         skip_epoch = int(opt.ratiodata)
     
-    grad_udpate = 0
+    grad_update = 0
     for epoch in range(init_epoch, opt.epochs + 1, skip_epoch):
 
         # train for one epoch
