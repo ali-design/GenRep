@@ -113,12 +113,13 @@ def set_optimizer(opt, model):
     return optimizer
 
 
-def save_model(model, optimizer, opt, epoch, save_file):
+def save_model(model, optimizer, opt, epoch, grad_update, save_file):
     print('==> Saving...')
     state = {
         'opt': opt,
         'model': model.state_dict(),
         'optimizer': optimizer.state_dict(),
+        'grad_updates': grad_update,
         'epoch': epoch,
     }
     torch.save(state, save_file)

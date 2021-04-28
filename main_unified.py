@@ -264,7 +264,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt):
+def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update):
     """one epoch training"""
     model.train()
 
@@ -290,6 +290,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     # how many iterations per epoch
     iter_epoch = int(size_dataset / opt.batch_size)
     for idx, data in enumerate(train_loader):
+        grad_update += 1
         if idx % iter_epoch == 0:
             curr_epoch = epoch + (idx / iter_epoch)
             adjust_learning_rate(opt, optimizer, curr_epoch)
@@ -387,6 +388,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             
             # tensorboard logger
             logger.log_value('loss', loss, curr_epoch)
+            logger.log_value('grad_update', grad_update, curr_epoch)
             logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], curr_epoch)
             for metric_name, metric_value in other_metrics.items():
                 if metric_name == 'image':
@@ -414,7 +416,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             other_metrics['image'] = [ims[:8], anchors[:8]]
 
 
-    return losses.avg, other_metrics
+    return losses.avg, other_metrics, grad_update
 
 
 def main():
@@ -452,19 +454,20 @@ def main():
     skip_epoch = 1
     if opt.ratiodata > 1:
         skip_epoch = int(opt.ratiodata)
-
+    
+    grad_udpate = 0
     for epoch in range(init_epoch, opt.epochs + 1, skip_epoch):
 
         # train for one epoch
         time1 = time.time()
-        loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt)
+        loss, other_metrics, grad_update = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
         if epoch % opt.save_freq == 0:
             save_file = os.path.join(
                 opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
-            save_model(model, optimizer, opt, epoch, save_file)
+            save_model(model, optimizer, opt, epoch, grad_update, save_file)
 
     # save the last model
     save_file = os.path.join(
