@@ -446,6 +446,7 @@ class GansetDataset(Dataset):
 
         if self.ratiodata < 1.:
             # Repeat the dataset to compensate for the lower number of images
+            print('Length: {}, will repeat the dataset to compensate for the lower number of images...'.format(len(self.imglist)))
             self.imglist = self.imglist * int(1/self.ratiodata)
         self.dir_size = len(self.imglist)
         print('Length: {}'.format(self.dir_size))

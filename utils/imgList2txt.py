@@ -10,8 +10,8 @@ import time
 
 # dataset = 'biggan-deep-256_tr1.0_steer_composite_pth_imagenet1000_N2'
 
-dataset = 'biggan-deep-256_tr2.0_gauss1_std1.0_imagenet1000_NS13000_NN1'
-# dataset = 'biggan-deep-256_tr2.0_gauss1_std0.5_imagenet1000_NS1300_NN1'
+# dataset = 'biggan-deep-256_tr2.0_gauss1_std1.0_imagenet1000_NS13000_NN1'
+dataset = 'biggan-deep-256_tr2.0_gauss1_std0.5_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std0.8_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std1.2_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std1.5_imagenet1000_NS1300_NN1'

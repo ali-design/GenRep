@@ -285,7 +285,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     # size_dataset should be 1.3M for imagenet1K and 130K for imagenet100
     # we divide by ratio data cause that increases, but when ratio data < 1, it relicates
     # the datset, and so size is the same as 1
-    size_dataset = len(train_loader.dataset) / max(opt.ratio_data, 1)
+    size_dataset = len(train_loader.dataset) / max(opt.ratiodata, 1)
 
     # how many iterations per epoch
     iter_epoch = int(size_dataset / opt.batch_size)
