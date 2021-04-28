@@ -264,7 +264,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update):
+def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, logger):
     """one epoch training"""
     model.train()
 
@@ -292,7 +292,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update):
     for idx, data in enumerate(train_loader):
         grad_update += 1
         if idx % iter_epoch == 0:
-            curr_epoch = epoch + (idx / iter_epoch)
+            curr_epoch = int(epoch + (idx / iter_epoch))
             adjust_learning_rate(opt, optimizer, curr_epoch)
 
         if len(data) == 2:
@@ -375,8 +375,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update):
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
 
-        if (idx+1) % iter_epoch == 0 or (idx+1) == len(train_loader):
-            curr_epoch = epoch + (idx / iter_epoch)
+        if (idx+1) % iter_epoch == 0 or (idx+1) == len(train_loader) or epoch==1:
+            curr_epoch = int(epoch + (idx / iter_epoch))
             other_metrics = {}
 
             if opt.encoding_type == 'crossentropy':
@@ -460,7 +460,7 @@ def main():
 
         # train for one epoch
         time1 = time.time()
-        loss, other_metrics, grad_update = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update)
+        loss, other_metrics, grad_update = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, logger)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
