@@ -375,8 +375,21 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
 
-        if (idx+1) % iter_epoch == 0 or (idx+1) == len(train_loader) or epoch==1:
-            curr_epoch = int(epoch + (idx / iter_epoch))
+        if (idx+1) % iter_epoch == 0 or (epoch==1 and idx == 0):
+            if idx == 0 and epoch == 1:
+                curr_epoch = 0
+            else:
+                curr_epoch = int(epoch + (idx / iter_epoch))
+            
+            # Save images
+
+            save_file = os.path.join(
+                    opt.save_folder, 'images')
+
+            #if not os.path.isdir(save_file):
+            #    os.makedirs(save_file)
+            #####
+
             other_metrics = {}
 
             if opt.encoding_type == 'crossentropy':
