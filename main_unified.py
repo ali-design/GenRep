@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import numpy as np
+import cv2
 import ipdb
 import os
 import sys
@@ -382,14 +383,23 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
                 curr_epoch = int(epoch + (idx / iter_epoch))
             
             # Save images
-
             save_file = os.path.join(
                     opt.save_folder, 'images')
 
-            #if not os.path.isdir(save_file):
-            #    os.makedirs(save_file)
-            #####
+            if not os.path.isdir(save_file):
+                os.makedirs(save_file)
+            neighbors = anchors[::32]
+            anchors = ims[::32]
+            bs = anchors.shape[0]
+            grid_images = vutils.make_grid(
+                    torch.cat((anchors, neighbors)), nrow=bs)
+            grid_images *= np.array(opt.std)[:, None, None]
+            grid_images += np.array(opt.mean)[:, None, None]
+            grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
+            grid_images = grid_images[None, :].transpose(0,2,3,1)
+            cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}.png', grid_images[0])
 
+            
             other_metrics = {}
 
             if opt.encoding_type == 'crossentropy':
