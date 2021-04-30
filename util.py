@@ -113,13 +113,14 @@ def set_optimizer(opt, model):
     return optimizer
 
 
-def save_model(model, optimizer, opt, epoch, grad_update, save_file):
+def save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file):
     print('==> Saving...')
     state = {
         'opt': opt,
         'model': model.state_dict(),
         'optimizer': optimizer.state_dict(),
         'grad_updates': grad_update,
+        'class_count': class_count,
         'epoch': epoch,
     }
     torch.save(state, save_file)
@@ -427,7 +428,7 @@ class GansetDataset(Dataset):
         
         # get list of anchor images, first check if we have the list in a txt file ow list the images
         extra_rootdir = self.root_dir.replace('indep_20_samples', 'indep_1_samples')
-        imgList_filename = os.path.join(extra_rootdir, 'ratiodata{}_imgList.txt'.format(self.ratiodata))
+        imgList_filename = os.path.join(extra_rootdir.replace('/train',''), 'ratiodata{}_imgList.txt'.format(self.ratiodata))
         if os.path.isfile(imgList_filename):
             print('Listing images by reading from ', imgList_filename)
             with open(imgList_filename, 'r') as fid:
@@ -463,7 +464,7 @@ class GansetDataset(Dataset):
                 with open(os.path.join(self.root_dir, classname, 'z_dataset.pkl'), 'rb') as fid:
                     z_dict = pickle.load(fid)
                 self.z_dict[classname] = z_dict
-
+        
         return classes, class_to_idx
 
     def __len__(self):
@@ -489,8 +490,8 @@ class GansetDataset(Dataset):
 
 
         image_neighbor = Image.open(img_name_neighbor)
-        label = self.imglist[idx].split('/')[-2]
-        label = self.class_to_idx[label]
+        label_class = self.imglist[idx].split('/')[-2]
+        label = self.class_to_idx[label_class]
         if self.transform:
             image = self.transform(image)
             image_neighbor = self.transform(image_neighbor)
@@ -503,9 +504,9 @@ class GansetDataset(Dataset):
            # z = np.random.normal(size=128).astype(np.float32)
             # z_vect.append(z)
             # z_vect.append(z)
-            return image, image_neighbor, label, z_vect
+            return image, image_neighbor, label, label_class, z_vect
         else:
-            return image, image_neighbor, label
+            return image, image_neighbor, label, label_class
 
 
 

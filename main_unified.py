@@ -21,6 +21,7 @@ from util import set_optimizer, save_model
 from networks.resnet_big import SupConResNet, SupCEResNet
 from losses import SupConLoss
 import oyaml as yaml
+import json
 
 try:
     import apex
@@ -265,7 +266,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, logger):
+def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, class_count, logger):
     """one epoch training"""
     model.train()
 
@@ -293,6 +294,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
     for idx, data in enumerate(train_loader):
         grad_update += 1
         if idx % iter_epoch == 0:
+            losses.reset()
             curr_epoch = int(epoch + (idx / iter_epoch))
             adjust_learning_rate(opt, optimizer, curr_epoch)
 
@@ -302,6 +304,10 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
         elif len(data) == 3:
             images = data[:2]
             labels = data[2]
+        elif len(data) == 4:
+            images = data[:2]
+            labels = data[2]
+            labels_class = data[3]
         else:
             raise NotImplementedError
         # print('images[0].shape, images[1].shape', images[0].shape, images[1].shape)
@@ -310,8 +316,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
             # We only pick one of images
             images = images[1]
         else:
-            ims = images[0]
-            anchors = images[1]
+            anchors = images[0]
+            neighbors = images[1]
             images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                                dim=1)
             # print('2) images shape', images.shape)
@@ -319,7 +325,12 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
             images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
             # print('3) images shape', images.shape)
 
+        labels_np = [x for x in labels.numpy()]
+        for x in labels_np:
+            class_count[x] += 1
+            
         labels = labels.cuda(non_blocking=True)
+        
         bsz = labels.shape[0]
         # warm-up learning rate
         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
@@ -388,36 +399,77 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
 
             if not os.path.isdir(save_file):
                 os.makedirs(save_file)
-            neighbors = anchors[::32]
-            anchors = ims[::32]
-            bs = anchors.shape[0]
+#             anchors_16 = anchors[::16]
+#             neighbors_16 = neighbors[::16]
+            anchors_16 = anchors[:]
+            neighbors_16 = neighbors[:]
+            bs = anchors_16.shape[0]
             grid_images = vutils.make_grid(
-                    torch.cat((anchors, neighbors)), nrow=bs)
+                    torch.cat((anchors_16, neighbors_16)), nrow=bs)
             grid_images *= np.array(opt.std)[:, None, None]
             grid_images += np.array(opt.mean)[:, None, None]
             grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
             grid_images = grid_images[None, :].transpose(0,2,3,1)
             cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}.png', grid_images[0])
 
+            with open('./utils/imagenet_class_name.json', 'rb') as fid:
+                imagenet_class_name_dict = json.load(fid)
+
+            labels_name = [imagenet_class_name_dict[x] for x in labels_class]
+            labels_idx = [str(x) for x in labels.cpu().numpy()]
             
+            with open(f'{save_file}/image_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
+                np.save(fid_npy, labels.cpu().numpy())
+                
+            with open(f'{save_file}/class_count_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
+                np.save(fid_npy, class_count)
+            
+            with open(f'{save_file}/image_epoch_{curr_epoch}.txt', 'w') as fid_txt:
+                str_data = 'index: '
+                str_data += ','.join(str(item) for item in labels_idx)
+                fid_txt.write(str_data)
+                fid_txt.write('\n')
+                
+                str_data = 'class: '
+                str_data += ','.join(str(item) for item in labels_class)
+                fid_txt.write(str_data)
+                fid_txt.write('\n')
+                
+                str_data = 'names: '
+                str_data += ','.join(str(item) for item in labels_name)
+                fid_txt.write(str_data)
+            
+            anchors_16 *= np.array(opt.std)[:, None, None]
+            anchors_16 += np.array(opt.mean)[:, None, None]
+            anchors_16 = (255*anchors_16.cpu().numpy()).astype(np.uint8)
+            anchors_16 = anchors_16.transpose(0,2,3,1)
+            for i in range(bs):
+                cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_anchor_{labels_name[i]}.png', anchors_16[i])
+
+            neighbors_16 *= np.array(opt.std)[:, None, None]
+            neighbors_16 += np.array(opt.mean)[:, None, None]
+            neighbors_16 = (255*neighbors_16.cpu().numpy()).astype(np.uint8)
+            neighbors_16 = neighbors_16.transpose(0,2,3,1)
+            for i in range(neighbors_16.shape[0]):
+                cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_neighbor_{labels_name[i]}.png', neighbors_16[i])
+                
             other_metrics = {}
 
             if opt.encoding_type == 'crossentropy':
                 other_metrics['top1_acc'] = top1.avg
             else:
                 if opt.showimg:
-                    other_metrics['image'] = [ims[:8], anchors[:8]]
+                    other_metrics['image'] = [anchors[:8], neighbors[:8]]
 
             
             # tensorboard logger
-            logger.log_value('loss', loss, curr_epoch)
+            logger.log_value('loss_avg', losses.avg, curr_epoch)
             logger.log_value('grad_update', grad_update, curr_epoch)
+#             logger.log_value('class_count', class_count, curr_epoch)
             logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], curr_epoch)
             for metric_name, metric_value in other_metrics.items():
                 if metric_name == 'image':
                     images = metric_value
-                    anchors = images[0]
-                    otherims = images[1]
                     bs = anchors.shape[0]
                     grid_images = vutils.make_grid(
                             torch.cat((anchors, otherims)), nrow=bs)
@@ -436,10 +488,10 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, lo
         other_metrics['top1_acc'] = top1.avg
     else:
         if opt.showimg:
-            other_metrics['image'] = [ims[:8], anchors[:8]]
+            other_metrics['image'] = [anchors[:8], neighbors[:8]]
 
 
-    return losses.avg, other_metrics, grad_update
+    return losses.avg, other_metrics, grad_update, class_count
 
 
 def main():
@@ -479,23 +531,24 @@ def main():
         skip_epoch = int(opt.ratiodata)
     
     grad_update = 0
+    class_count = np.zeros(1000)
     for epoch in range(init_epoch, opt.epochs + 1, skip_epoch):
 
         # train for one epoch
         time1 = time.time()
-        loss, other_metrics, grad_update = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, logger)
+        loss, other_metrics, grad_update, class_count = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, class_count, logger)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
         if epoch % opt.save_freq == 0:
             save_file = os.path.join(
                 opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
-            save_model(model, optimizer, opt, epoch, grad_update, save_file)
+            save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
 
     # save the last model
     save_file = os.path.join(
         opt.save_folder, 'last.pth')
-    save_model(model, optimizer, opt, opt.epochs, save_file)
+    save_model(model, optimizer, opt, opt.epochs, grad_update, class_count, save_file)
 
 
 if __name__ == '__main__':

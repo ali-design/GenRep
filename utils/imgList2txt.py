@@ -3,21 +3,28 @@ import os
 from tqdm import tqdm 
 import time
 
-# dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.2_imagenet1000_NS13000_NN1'
-# dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.05_imagenet1000_NS1300_NN1'
+## BigBiGAN
+dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.05_imagenet1000_NS1300_NN1'
 # dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.1_imagenet1000_NS1300_NN1'
+# dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.2_imagenet1000_NS13000_NN1'
 # dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.3_imagenet1000_NS1300_NN1'
+# dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.4_imagenet1000_NS1300_NN1'
 
+# dataset = 'steer!'
+##----------------------------------------------------------------------------
+## BigGAN
 # dataset = 'biggan-deep-256_tr1.0_steer_composite_pth_imagenet1000_N2'
 
+# dataset = 'biggan-deep-256_tr1.0_indept_imagenet1000_N1'
+
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std1.0_imagenet1000_NS13000_NN1'
-dataset = 'biggan-deep-256_tr2.0_gauss1_std0.5_imagenet1000_NS1300_NN1'
+# dataset = 'biggan-deep-256_tr2.0_gauss1_std0.5_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std0.8_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std1.2_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std1.5_imagenet1000_NS1300_NN1'
     
-root_dir = os.path.join('/data/vision/phillipi/ganclr/datasets', dataset,'train')
-
+root_dir = os.path.join('/data/vision/phillipi/ganclr/datasets', dataset)
+print('Working on dataset ', root_dir)
 print('Listing images ...')
 time_start = time.time()
 imgList = glob.glob(os.path.join(root_dir, '*/*_anchor.png'))
