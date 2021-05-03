@@ -24,10 +24,12 @@ dataset = 'bigbigan_resnet_128_tr2.0_gauss1_std0.05_imagenet1000_NS1300_NN1'
 # dataset = 'biggan-deep-256_tr2.0_gauss1_std1.5_imagenet1000_NS1300_NN1'
     
 root_dir = os.path.join('/data/vision/phillipi/ganclr/datasets', dataset)
+root_dir_train = os.path.join('/data/vision/phillipi/ganclr/datasets', dataset, 'train')
+
 print('Working on dataset ', root_dir)
 print('Listing images ...')
 time_start = time.time()
-imgList = glob.glob(os.path.join(root_dir, '*/*_anchor.png'))
+imgList = glob.glob(os.path.join(root_dir_train, '*/*_anchor.png'))
 print('number of images: {} and spent time: {}'.format(len(imgList), time.time() - time_start))
 
 print('creating the full image list ...')

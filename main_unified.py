@@ -297,6 +297,11 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             losses.reset()
             curr_epoch = int(epoch + (idx / iter_epoch))
             adjust_learning_rate(opt, optimizer, curr_epoch)
+            
+#             if opt.ratiodata > 1:
+#                 save_file = os.path.join(
+#                     opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+#                 save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
 
         if len(data) == 2:
             images = data[0]
@@ -539,11 +544,17 @@ def main():
         loss, other_metrics, grad_update, class_count = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, class_count, logger)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
-
-        if epoch % opt.save_freq == 0:
-            save_file = os.path.join(
-                opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
-            save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
+        
+        if opt.ratiodata =< 1: 
+            if epoch % opt.save_freq == 0 or epoch == 1:
+                save_file = os.path.join(
+                    opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+                save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
+        else:
+            if epoch % opt.save_freq == 1:
+                save_file = os.path.join(
+                    opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+                save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)            
 
     # save the last model
     save_file = os.path.join(
