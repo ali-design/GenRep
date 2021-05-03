@@ -493,8 +493,12 @@ class GansetDataset(Dataset):
         label_class = self.imglist[idx].split('/')[-2]
         label = self.class_to_idx[label_class]
         if self.transform:
+            oldim = image
+            oldimneighbor = image_neighbor
             image = self.transform(image)
             image_neighbor = self.transform(image_neighbor)
+            oldim.close()
+            oldimneighbor.close()
 
         z_vect = []
         if self.method == 'SupInv' or self.method == 'UnsupInv': # later can check for Unsupervised inverter will empty labels
