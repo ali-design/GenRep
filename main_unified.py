@@ -545,7 +545,7 @@ def main():
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
         
-        if opt.ratiodata =< 1: 
+        if opt.ratiodata <= 1: 
             if epoch % opt.save_freq == 0 or epoch == 1:
                 save_file = os.path.join(
                     opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
