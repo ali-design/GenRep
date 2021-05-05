@@ -417,46 +417,47 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             grid_images = grid_images[None, :].transpose(0,2,3,1)
             cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}.png', grid_images[0])
 
-            with open('./utils/imagenet_class_name.json', 'rb') as fid:
-                imagenet_class_name_dict = json.load(fid)
+            if opt.dataset == 'gan':
+                with open('./utils/imagenet_class_name.json', 'rb') as fid:
+                    imagenet_class_name_dict = json.load(fid)
 
-            labels_name = [imagenet_class_name_dict[x] for x in labels_class]
-            labels_idx = [str(x) for x in labels.cpu().numpy()]
-            
-            with open(f'{save_file}/image_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
-                np.save(fid_npy, labels.cpu().numpy())
-                
-            with open(f'{save_file}/class_count_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
-                np.save(fid_npy, class_count)
-            
-            with open(f'{save_file}/image_epoch_{curr_epoch}.txt', 'w') as fid_txt:
-                str_data = 'index: '
-                str_data += ','.join(str(item) for item in labels_idx)
-                fid_txt.write(str_data)
-                fid_txt.write('\n')
-                
-                str_data = 'class: '
-                str_data += ','.join(str(item) for item in labels_class)
-                fid_txt.write(str_data)
-                fid_txt.write('\n')
-                
-                str_data = 'names: '
-                str_data += ','.join(str(item) for item in labels_name)
-                fid_txt.write(str_data)
-            
-            anchors_16 *= np.array(opt.std)[:, None, None]
-            anchors_16 += np.array(opt.mean)[:, None, None]
-            anchors_16 = (255*anchors_16.cpu().numpy()).astype(np.uint8)
-            anchors_16 = anchors_16.transpose(0,2,3,1)
-            for i in range(bs):
-                cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_anchor_{labels_name[i]}.png', anchors_16[i])
+                labels_name = [imagenet_class_name_dict[x] for x in labels_class]
+                labels_idx = [str(x) for x in labels.cpu().numpy()]
 
-            neighbors_16 *= np.array(opt.std)[:, None, None]
-            neighbors_16 += np.array(opt.mean)[:, None, None]
-            neighbors_16 = (255*neighbors_16.cpu().numpy()).astype(np.uint8)
-            neighbors_16 = neighbors_16.transpose(0,2,3,1)
-            for i in range(neighbors_16.shape[0]):
-                cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_neighbor_{labels_name[i]}.png', neighbors_16[i])
+                with open(f'{save_file}/image_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
+                    np.save(fid_npy, labels.cpu().numpy())
+
+                with open(f'{save_file}/class_count_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
+                    np.save(fid_npy, class_count)
+
+                with open(f'{save_file}/image_epoch_{curr_epoch}.txt', 'w') as fid_txt:
+                    str_data = 'index: '
+                    str_data += ','.join(str(item) for item in labels_idx)
+                    fid_txt.write(str_data)
+                    fid_txt.write('\n')
+
+                    str_data = 'class: '
+                    str_data += ','.join(str(item) for item in labels_class)
+                    fid_txt.write(str_data)
+                    fid_txt.write('\n')
+
+                    str_data = 'names: '
+                    str_data += ','.join(str(item) for item in labels_name)
+                    fid_txt.write(str_data)
+
+                anchors_16 *= np.array(opt.std)[:, None, None]
+                anchors_16 += np.array(opt.mean)[:, None, None]
+                anchors_16 = (255*anchors_16.cpu().numpy()).astype(np.uint8)
+                anchors_16 = anchors_16.transpose(0,2,3,1)
+                for i in range(bs):
+                    cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_anchor_{labels_name[i]}.png', anchors_16[i])
+
+                neighbors_16 *= np.array(opt.std)[:, None, None]
+                neighbors_16 += np.array(opt.mean)[:, None, None]
+                neighbors_16 = (255*neighbors_16.cpu().numpy()).astype(np.uint8)
+                neighbors_16 = neighbors_16.transpose(0,2,3,1)
+                for i in range(neighbors_16.shape[0]):
+                    cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_neighbor_{labels_name[i]}.png', neighbors_16[i])
                 
             other_metrics = {}
 
