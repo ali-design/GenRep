@@ -36,11 +36,11 @@ def parse_option():
                         choices=['contrastive', 'crossentropy', 'autoencoding'])
     parser.add_argument('--print_freq', type=int, default=10,
                         help='print frequency')
-    parser.add_argument('--save_freq', type=int, default=20,
+    parser.add_argument('--save_freq', type=int, default=10,
                         help='save frequency')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch_size')
-    parser.add_argument('--num_workers', type=int, default=16,
+    parser.add_argument('--num_workers', type=int, default=64,
                         help='num of workers to use')
     parser.add_argument('--epochs', type=int, default=20,
                         help='number of training epochs')
@@ -417,7 +417,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             grid_images = grid_images[None, :].transpose(0,2,3,1)
             cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}.png', grid_images[0])
 
-            if opt.dataset == 'gan':
+            if opt.dataset == 'gan_debug':
                 with open('./utils/imagenet_class_name.json', 'rb') as fid:
                     imagenet_class_name_dict = json.load(fid)
 

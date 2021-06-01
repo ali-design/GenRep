@@ -33,7 +33,7 @@ def parse_option():
                         help='save frequency')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='batch_size')
-    parser.add_argument('--num_workers', type=int, default=16,
+    parser.add_argument('--num_workers', type=int, default=64,
                         help='num of workers to use')
     parser.add_argument('--epochs', type=int, default=60,
                         help='number of training epochs')
@@ -384,6 +384,7 @@ def validate(val_loader, model, classifier, criterion, opt):
 def main():
     best_acc = 0
     opt = parse_option()
+    print(opt)
 
     # build data loader
     train_loader, val_loader = set_loader(opt)

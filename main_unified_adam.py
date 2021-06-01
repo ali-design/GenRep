@@ -1,24 +1,29 @@
 from __future__ import print_function
 
 import numpy as np
+import cv2
+import ipdb
 import os
 import sys
 import argparse
 import time
-import math
 
 import torchvision.utils as vutils
+import math
 import tensorboard_logger as tb_logger
 import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
 
-from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset
+from util import TwoCropTransform, AverageMeter, GansetDataset, GansteerDataset, MixDataset
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from util import set_optimizer, save_model
-from networks.resnet_big import SupConResNet, SupCEResNet, SupInverterResNet, UnsupInverterResNet
-from losses import SupConLoss, SupInverterLoss, UnsupInverterLoss
+from networks.resnet_big import SupConResNet, SupCEResNet
+from losses import SupConLoss
 import oyaml as yaml
+import json
+
+import torch.optim as optim
 
 try:
     import apex
@@ -30,7 +35,7 @@ except ImportError:
 def parse_option():
     parser = argparse.ArgumentParser('argument for training')
     parser.add_argument('--encoding_type', type=str, default='contrastive',
-                        choices=['contrastive', 'crossentropy', 'inverter'])
+                        choices=['contrastive', 'crossentropy', 'autoencoding'])
     parser.add_argument('--print_freq', type=int, default=10,
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=20,
@@ -39,10 +44,11 @@ def parse_option():
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=16,
                         help='num of workers to use')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=20,
                         help='number of training epochs')
     parser.add_argument('--showimg', action='store_true', help='display image in tensorboard')
-    parser.add_argument('--removeimtf', action='store_true', help='on/off transformations for inverter')
+    parser.add_argument('--resume', default='', type=str, help='whether to resume training')
+
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.03,
                         help='learning rate')
@@ -57,16 +63,21 @@ def parse_option():
 
     # model dataset
     parser.add_argument('--model', type=str, default='resnet50')
-    parser.add_argument('--dataset', type=str, default='biggan',
-                        choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+    parser.add_argument('--dataset', type=str, default='gan',
+                        choices=['gan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet'], help='dataset')
+    parser.add_argument('--mix_ratio', type=float, default=0, help='e.g. 0.5 means mix imagenet100 with 50% data from bigbigan100')
 
     ## Ali: todo: this should be based on opt.encoding type and remove the default (revisit every default) and name of the model for saving
     # method
-    parser.add_argument('--numcontrast', type=int, default=20,
+
+    parser.add_argument('--ratiodata', type=float, default=1.0,
+            help='ratio of the data')
+    parser.add_argument('--numcontrast', type=int, default=1,
                         help='num of workers to use')
     parser.add_argument('--method', type=str, default='SimCLR',
                         choices=['SupCon', 'SimCLR'], help='choose method')
-    parser.add_argument('--walk_method', type=str, choices=['none', 'random', 'steer', 'pca'], help='choose method')
+    parser.add_argument('--walk_method', type=str, help='choose method')
+    parser.add_argument('--removeimtf', action='store_true', help='whether we want to remove simclr transforms')
 
     # temperature
     parser.add_argument('--temp', type=float, default=0.1,
@@ -97,14 +108,6 @@ def parse_option():
         opt.method = 'SupCE'
         opt.model_path = os.path.join(opt.cache_folder, 'SupCE/{}_models'.format(opt.dataset))
         opt.tb_path = os.path.join(opt.cache_folder, 'SupCE/{}_tensorboard'.format(opt.dataset))
-    elif opt.encoding_type == 'inverter': 
-        if opt.method == 'SupCon':
-            opt.method = 'SupInv'
-        elif opt.method == 'SimCLR':
-            opt.method = 'UnsupInv'
-        opt.model_path = os.path.join(opt.cache_folder, '{}/{}_models'.format(opt.method, opt.dataset))
-        opt.tb_path = os.path.join(opt.cache_folder, '{}/{}_tensorboard'.format(opt.method, opt.dataset))
-
     else:
         opt.model_path = os.path.join(opt.cache_folder, '{}/{}_models'.format(opt.method, opt.dataset))
         opt.tb_path = os.path.join(opt.cache_folder, '{}/{}_tensorboard'.format(opt.method, opt.dataset))
@@ -114,19 +117,21 @@ def parse_option():
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
 
-    opt.model_name = '{}_{}_{}_ncontrast.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.numcontrast, opt.learning_rate, 
+    opt.model_name = '{}_{}_{}_{}_ncontrast.{}_ratiodata.{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
+            format(opt.method, opt.dataset, opt.walk_method, opt.model, opt.numcontrast, opt.ratiodata, opt.learning_rate, 
             opt.weight_decay, opt.batch_size, opt.temp, opt.trial)
 
-    if opt.encoding_type == 'inverter':
-            opt.model_name = '{}_{}_{}_lr_{}_decay_{}_bsz_{}_temp_{}_trial_{}'.\
-            format(opt.method, opt.dataset, opt.model, opt.learning_rate, 
-            opt.weight_decay, opt.batch_size, opt.temp, opt.trial)    
+    if opt.removeimtf:
+        opt.model_name = '{}_noimtf'.format(opt.model_name)
 
     if opt.cosine:
         opt.model_name = '{}_cosine'.format(opt.model_name)
 
     opt.model_name = '{}_{}'.format(opt.model_name, os.path.basename(opt.data_folder))
+    
+    if opt.mix_ratio > 0:
+        opt.model_name = '{}_mix_ratio{}'.format(opt.model_name, int(opt.mix_ratio*100))
+        
     # warm-up for large-batch training,
     if opt.batch_size > 256:
         opt.warm = True
@@ -149,7 +154,7 @@ def parse_option():
     if not os.path.isdir(opt.save_folder):
         os.makedirs(opt.save_folder)
 
-    if opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    if opt.dataset == 'gan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         # or 256 as you like
         opt.img_size = 128
         opt.n_cls = 1000
@@ -167,7 +172,7 @@ def set_loader(opt):
     elif opt.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
-    elif opt.dataset == 'biggan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+    elif opt.dataset == 'gan' or opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     else:
@@ -177,7 +182,6 @@ def set_loader(opt):
     opt.std = std
     
     if opt.removeimtf:
-        print('>>> removeimtf is ON.')
         train_transform = transforms.Compose([
             transforms.CenterCrop(size=int(opt.img_size*0.875)),
             transforms.ToTensor(),
@@ -194,19 +198,6 @@ def set_loader(opt):
             transforms.ToTensor(),
             normalize,
         ])
-        
-        
-
-#     train_transform = transforms.Compose([
-#         transforms.RandomResizedCrop(size=int(opt.img_size*0.875), scale=(0.2, 1.)),
-#         transforms.RandomHorizontalFlip(),
-#         transforms.RandomApply([
-#             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
-#         ], p=0.8),
-#         transforms.RandomGrayscale(p=0.2),
-#         transforms.ToTensor(),
-#         normalize,
-#     ])
 
     if opt.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(root=opt.data_folder,
@@ -217,21 +208,27 @@ def set_loader(opt):
                                           transform=TwoCropTransform(train_transform),
                                           download=True)
     elif opt.dataset == 'imagenet100' or opt.dataset == 'imagenet100K' or opt.dataset == 'imagenet':
+        if opt.mix_ratio == 0:
             train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
                                         transform=TwoCropTransform(train_transform))
-    elif opt.dataset == 'biggan':
-        if opt.walk_method == 'random':
-            train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                          transform=train_transform, numcontrast=opt.numcontrast, 
-                                          method=opt.method)        
+        else:
+            train_dataset = MixDataset(root_dir=os.path.join(opt.data_folder, 'train'), mix_ratio=opt.mix_ratio,
+                                       transform=TwoCropTransform(train_transform))
 
-        elif opt.walk_method == 'steer':
-            train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-                                            transform=train_transform, numcontrast=opt.numcontrast, 
-                                            method=opt.method)        
-        elif opt.walk_method == 'none':
-            train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-                                        transform=TwoCropTransform(train_transform))
+    elif opt.dataset == 'gan':
+        train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+                transform=train_transform, numcontrast=opt.numcontrast, ratio_data=opt.ratiodata)        
+
+        #if opt.walk_method == 'random':
+        #    train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+        #                                  transform=train_transform, numcontrast=opt.numcontrast)        
+
+        #elif opt.walk_method == 'steer':
+        #    train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
+        #                                transform=train_transform, numcontrast=opt.numcontrast)        
+        #elif opt.walk_method == 'none':
+        #    train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
+        #                                transform=TwoCropTransform(train_transform))
         ## Ali: ToDo: elif opt.walk_method == 'pca'...
     else:
         raise ValueError(opt.dataset)
@@ -253,13 +250,9 @@ def set_model(opt):
         model = SupCEResNet(name=opt.model, num_classes=opt.n_cls, img_size=int(opt.img_size*0.875))
         criterion = torch.nn.CrossEntropyLoss()
 
-    elif opt.encoding_type == 'inverter':
-        if opt.method == 'SupInv':
-            model = SupInverterResNet(name=opt.model, img_size=int(opt.img_size*0.875))
-            criterion = SupInverterLoss()
-        elif opt.method == 'UnsupInv':
-            model = UnsupInverterResNet(name=opt.model, img_size=int(opt.img_size*0.875))
-            criterion = UnsupInverterLoss()
+    elif opt.encoding_type == 'autoencoding':
+        print("TODO(ali): Implement here")
+        raise NotImplementedError
 
     # enable synchronized Batch Normalization
     if opt.syncBN:
@@ -275,7 +268,7 @@ def set_model(opt):
     return model, criterion
 
 
-def train(train_loader, model, criterion, optimizer, epoch, opt):
+def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, class_count, logger):
     """one epoch training"""
     model.train()
 
@@ -283,8 +276,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     data_time = AverageMeter()
     losses = AverageMeter()
 
-    # top1 = AverageMeter()
-    top1 = 0 ##Ali ToDo: deal with this top1
+    top1 = AverageMeter()
     end = time.time()
 
     ## Ali: Todo: this data loading depends on if we generate positive on the fly or load them. if loading then we have data[0] and data[1]
@@ -293,11 +285,26 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
     # for idx, (images, labels) in enumerate(train_loader):
     #     data_time.update(time.time() - end)
     print("Start train")
-    # t1 = time.time()
 
+    # size_dataset should be 1.3M for imagenet1K and 130K for imagenet100
+    # we divide by ratio data cause that increases, but when ratio data < 1, it relicates
+    # the datset, and so size is the same as 1
+    size_dataset = len(train_loader.dataset) / max(opt.ratiodata, 1)
+
+    # how many iterations per epoch
+    iter_epoch = int(size_dataset / opt.batch_size)
     for idx, data in enumerate(train_loader):
-        # print('batch loading time', time.time() - t1)
-        # t2 = time.time()
+        grad_update += 1
+        if idx % iter_epoch == 0:
+            losses.reset()
+            curr_epoch = int(epoch + (idx / iter_epoch))
+#             adjust_learning_rate(opt, optimizer, curr_epoch)
+            
+#             if opt.ratiodata > 1:
+#                 save_file = os.path.join(
+#                     opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+#                 save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
+
         if len(data) == 2:
             images = data[0]
             labels = data[1]
@@ -306,31 +313,18 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             labels = data[2]
         elif len(data) == 4:
             images = data[:2]
-            labels = data[2] 
+            labels = data[2]
             labels_class = data[3]
-        elif len(data) == 5:
-            images = data[:2]
-            labels = data[2] 
-            labels_class = data[3]
-            z_vect = data[4] 
         else:
             raise NotImplementedError
-        
+        # print('images[0].shape, images[1].shape', images[0].shape, images[1].shape)
         data_time.update(time.time() - end)
-        if opt.encoding_type == 'crossentropy':
+        if opt.encoding_type != 'contrastive':
             # We only pick one of images
             images = images[1]
-        elif opt.encoding_type == 'inverter':
-            # We only pick one of images and that's anchor
-#             images = images[0] # <== this is for pairing z_anchor and anchor
-            images = images[1] # <== this is for pairing z_anchor and anchor
-
-            # also only pick z_vect[0] ToDo: if alwasy the case just send z anchor (channel 0) from loader, but make sure image is also images[0]
-            z_vect = z_vect[0].cuda(non_blocking=True)       
-
-        elif opt.encoding_type == 'contrastive':
-            ims = images[0]
-            anchors = images[1]
+        else:
+            anchors = images[0]
+            neighbors = images[1]
             images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                                dim=1)
             # print('2) images shape', images.shape)
@@ -338,11 +332,17 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
             # print('3) images shape', images.shape)
 
+        labels_np = [x for x in labels.numpy()]
+        for x in labels_np:
+            class_count[x] += 1
+            
         labels = labels.cuda(non_blocking=True)
+        
         bsz = labels.shape[0]
         # warm-up learning rate
-        warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
+#         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
         # compute loss
+
 
         if opt.encoding_type == 'contrastive':
             features = model(images)
@@ -359,33 +359,17 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
             loss = criterion(output, labels)
             acc1, acc5 = accuracy(output, labels, topk=(1, 5))
             top1.update(acc1[0], bsz)
-        elif opt.encoding_type == 'inverter':
-            top1 = 0
-            #print('images.shape:', images.shape)
-            output = model(images.cuda()) # images.shape: [256, 3, 112, 112]
-            if opt.method == 'SupInv':
-                loss, loss_z, loss_y = criterion(output, z_vect, labels) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
-            elif opt.method == 'UnsupInv':
-                loss = criterion(output, z_vect) #how many images as images? output is z and y and  z_vect[0] is zs and z_vect[1] are y and are shape [256, 128] and [256, 1000]
-
-            ## Ali: ToDo deal with this top1   
-            # acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-            # top1.update(acc1[0], bsz)
-            top1 = 0
-
         else:
             raise NotImplementedError
-        # t3 = time.time()
-        # print('{}- spent time before loss update: {}'.format(idx, t3 - t2))    
+
+
         # update metric
         losses.update(loss.item(), bsz)
 
-        # SGD
+        # Adam
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        # t4 = time.time()
-        # print('{}- spent after before loss update: {}'.format(idx, t4 - t3))    
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -409,26 +393,113 @@ def train(train_loader, model, criterion, optimizer, epoch, opt):
                        epoch, idx + 1, len(train_loader), batch_time=batch_time,
                        data_time=data_time, loss=losses))
             sys.stdout.flush()
-        # t1 = time.time()
+
+        if (idx+1) % iter_epoch == 0 or (epoch==1 and idx == 0):
+            if idx == 0 and epoch == 1:
+                curr_epoch = 0
+            else:
+                curr_epoch = int(epoch + (idx / iter_epoch))
+            
+            # Save images
+            save_file = os.path.join(
+                    opt.save_folder, 'images')
+
+            if not os.path.isdir(save_file):
+                os.makedirs(save_file)
+#             anchors_16 = anchors[::16]
+#             neighbors_16 = neighbors[::16]
+            anchors_16 = anchors[:]
+            neighbors_16 = neighbors[:]
+            bs = anchors_16.shape[0]
+            grid_images = vutils.make_grid(
+                    torch.cat((anchors_16, neighbors_16)), nrow=bs)
+            grid_images *= np.array(opt.std)[:, None, None]
+            grid_images += np.array(opt.mean)[:, None, None]
+            grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
+            grid_images = grid_images[None, :].transpose(0,2,3,1)
+            cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}.png', grid_images[0])
+
+            if opt.dataset == 'gan':
+                with open('./utils/imagenet_class_name.json', 'rb') as fid:
+                    imagenet_class_name_dict = json.load(fid)
+
+                labels_name = [imagenet_class_name_dict[x] for x in labels_class]
+                labels_idx = [str(x) for x in labels.cpu().numpy()]
+
+                with open(f'{save_file}/image_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
+                    np.save(fid_npy, labels.cpu().numpy())
+
+                with open(f'{save_file}/class_count_epoch_{curr_epoch}.npy', 'wb') as fid_npy:
+                    np.save(fid_npy, class_count)
+
+                with open(f'{save_file}/image_epoch_{curr_epoch}.txt', 'w') as fid_txt:
+                    str_data = 'index: '
+                    str_data += ','.join(str(item) for item in labels_idx)
+                    fid_txt.write(str_data)
+                    fid_txt.write('\n')
+
+                    str_data = 'class: '
+                    str_data += ','.join(str(item) for item in labels_class)
+                    fid_txt.write(str_data)
+                    fid_txt.write('\n')
+
+                    str_data = 'names: '
+                    str_data += ','.join(str(item) for item in labels_name)
+                    fid_txt.write(str_data)
+
+                anchors_16 *= np.array(opt.std)[:, None, None]
+                anchors_16 += np.array(opt.mean)[:, None, None]
+                anchors_16 = (255*anchors_16.cpu().numpy()).astype(np.uint8)
+                anchors_16 = anchors_16.transpose(0,2,3,1)
+                for i in range(bs):
+                    cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_anchor_{labels_name[i]}.png', anchors_16[i])
+
+                neighbors_16 *= np.array(opt.std)[:, None, None]
+                neighbors_16 += np.array(opt.mean)[:, None, None]
+                neighbors_16 = (255*neighbors_16.cpu().numpy()).astype(np.uint8)
+                neighbors_16 = neighbors_16.transpose(0,2,3,1)
+                for i in range(neighbors_16.shape[0]):
+                    cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_neighbor_{labels_name[i]}.png', neighbors_16[i])
+                
+            other_metrics = {}
+
+            if opt.encoding_type == 'crossentropy':
+                other_metrics['top1_acc'] = top1.avg
+            else:
+                if opt.showimg:
+                    other_metrics['image'] = [anchors[:8], neighbors[:8]]
+
+            
+            # tensorboard logger
+            logger.log_value('loss_avg', losses.avg, curr_epoch)
+            logger.log_value('grad_update', grad_update, curr_epoch)
+#             logger.log_value('class_count', class_count, curr_epoch)
+            logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], curr_epoch)
+            for metric_name, metric_value in other_metrics.items():
+                if metric_name == 'image':
+                    images = metric_value
+                    bs = anchors.shape[0]
+                    grid_images = vutils.make_grid(
+                            torch.cat((anchors, otherims)), nrow=bs)
+                    grid_images *= np.array(opt.std)[:, None, None]
+                    grid_images += np.array(opt.mean)[:, None, None]
+                    grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
+                    grid_images = grid_images[None, :].transpose(0,2,3,1)
+                    logger.log_images(metric_name, grid_images, curr_epoch)
+                else:
+                    logger.log_value(metric_name, metric_value, curr_epoch)
+
+
     other_metrics = {}
 
     if opt.encoding_type == 'crossentropy':
         other_metrics['top1_acc'] = top1.avg
-    elif opt.encoding_type == 'contrastive':
-        if opt.showimg:
-            other_metrics['image'] = [ims[:8], anchors[:8]]
-    elif opt.encoding_type == 'inverter':
-        if opt.showimg:
-            other_metrics['image'] = [images[:8]]
-
-
-    if opt.method == 'SupInv':
-        return losses.avg, other_metrics, loss_z, loss_y
-    elif opt.method == 'UnsupInv':
-        return losses.avg, other_metrics, loss
-
     else:
-        return losses.avg, other_metrics
+        if opt.showimg:
+            other_metrics['image'] = [anchors[:8], neighbors[:8]]
+
+
+    return losses.avg, other_metrics, grad_update, class_count
 
 
 def main():
@@ -436,7 +507,8 @@ def main():
 
     with open(os.path.join(opt.save_folder, 'optE.yml'), 'w') as f:
         yaml.dump(vars(opt), f, default_flow_style=False)
-
+    print(opt)
+    
     # build data loader
     # opt.encoding_type tells us how to get training data
     train_loader = set_loader(opt)
@@ -445,63 +517,54 @@ def main():
     # opt.encoding_type tells us what to put as the head; choices are:
     # contrastive -> mlp or linear
     # crossentropy -> one linear for pred_y
-    # inverter -> one linear for pred_z and one linear for pred_y
+    # autoencoding -> one linear for pred_z and one linear for pred_y
     model, criterion = set_model(opt)
 
     # build optimizer
+#     optimizer = set_optimizer(opt, model)
     optimizer = set_optimizer(opt, model)
-
+    
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
     # tensorboard
     logger = tb_logger.Logger(logdir=opt.tb_folder, flush_secs=2)
 
     # training routine
-    for epoch in range(1, opt.epochs + 1):
-        adjust_learning_rate(opt, optimizer, epoch)
+    init_epoch = 1
+    if len(opt.resume) > 0:
+        model_ckp = torch.load(opt.resume)
+        init_epoch = model_ckp['epoch'] + 1
+        model.load_state_dict(model_ckp['model'])
+        optimizer.load_state_dict(model_ckp['optimizer'])
+    
+    skip_epoch = 1
+    if opt.ratiodata > 1:
+        skip_epoch = int(opt.ratiodata)
+    
+    grad_update = 0
+    class_count = np.zeros(1000)
+    for epoch in range(init_epoch, opt.epochs + 1, skip_epoch):
 
         # train for one epoch
         time1 = time.time()
-        if opt.method == 'SupInv':
-            loss, other_metrics,loss_z, loss_y = train(train_loader, model, criterion, optimizer, epoch, opt)
-            logger.log_value('total loss', loss, epoch)
-            logger.log_value('loss_z', loss_z, epoch)
-            logger.log_value('loss_y', loss_y, epoch)
-        elif opt.method == 'UnsupInv':
-            loss, other_metrics,loss = train(train_loader, model, criterion, optimizer, epoch, opt)
-            logger.log_value('loss_z', loss, epoch)
-        else:
-            loss, other_metrics = train(train_loader, model, criterion, optimizer, epoch, opt)
-            logger.log_value('loss', loss, epoch)
+        loss, other_metrics, grad_update, class_count = train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, class_count, logger)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
-
-        # tensorboard logger
-        # logger.log_value('loss', loss, epoch)
-        logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
-        for metric_name, metric_value in other_metrics.items():
-            if metric_name == 'image':
-                images = metric_value
-                anchors = images[0]
-                otherims = images[1]
-                bs = anchors.shape[0]
-                grid_images = vutils.make_grid(
-                        torch.cat((anchors, otherims)), nrow=bs)
-                grid_images *= np.array(opt.std)[:, None, None]
-                grid_images += np.array(opt.mean)[:, None, None]
-                grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
-                grid_images = grid_images[None, :].transpose(0,2,3,1)
-                logger.log_images(metric_name, grid_images, epoch)
-            else:
-                logger.log_value(metric_name, metric_value, epoch)
-
-        if epoch % opt.save_freq == 0:
-            save_file = os.path.join(
-                opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
-            save_model(model, optimizer, opt, epoch, save_file)
+        
+        if opt.ratiodata <= 1: 
+            if epoch % opt.save_freq == 0 or epoch == 1:
+                save_file = os.path.join(
+                    opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+                save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
+        else:
+            if epoch % opt.save_freq == 1:
+                save_file = os.path.join(
+                    opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+                save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)            
 
     # save the last model
     save_file = os.path.join(
         opt.save_folder, 'last.pth')
-    save_model(model, optimizer, opt, opt.epochs, save_file)
+    save_model(model, optimizer, opt, opt.epochs, grad_update, class_count, save_file)
 
 
 if __name__ == '__main__':

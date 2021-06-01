@@ -64,6 +64,16 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 *.txt
+
+my_rename.py
+exprs_logs
+main_linear.py
+main_unified_inverter.py
+logs_1k_test_simclr
+logs_1k_train_simclr
+logs_1k_val_real
+logs_1k_val
+
 # Flask stuff:
 instance/
 .webassets-cache
