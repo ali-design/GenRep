@@ -73,7 +73,7 @@ logs_1k_test_simclr
 logs_1k_train_simclr
 logs_1k_val_real
 logs_1k_val
-
+st_logs_1k_test_simclr
 # Flask stuff:
 instance/
 .webassets-cache
