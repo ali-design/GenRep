@@ -32,17 +32,17 @@ def parse_option():
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=50,
                         help='save frequency')
-    parser.add_argument('--batch_size', type=int, default=128,
+    parser.add_argument('--batch_size', type=int, default=512,
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=64,
                         help='num of workers to use')
-    parser.add_argument('--epochs', type=int, default=60,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='number of training epochs')
 
     # optimization
-    parser.add_argument('--learning_rate', type=float, default=0.3,
+    parser.add_argument('--learning_rate', type=float, default=1.0,
                         help='learning rate')
-    parser.add_argument('--lr_decay_epochs', type=str, default='30,40,50',
+    parser.add_argument('--lr_decay_epochs', type=str, default='60,75,90',
                         help='where to decay lr, can be a list')
     parser.add_argument('--lr_decay_rate', type=float, default=0.2,
                         help='decay rate for learning rate')
@@ -70,7 +70,7 @@ def parse_option():
 
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
-                        default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
+                        default='/data/vision/torralba/datasets/imagenet_pytorch_new',
                         help='the data folder')
 
     opt = parser.parse_args()
@@ -395,6 +395,7 @@ def validate(val_loader, model, classifier, criterion, opt):
 def main():
     best_acc = 0
     opt = parse_option()
+    print(opt)
 
     # build data loader
     train_loader, val_loader = set_loader(opt)
