@@ -10,7 +10,6 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from torchvision import transforms, datasets
-import tensorboard_logger as tb_logger
 from util import AverageMeter
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from torchnet.meter import mAPMeter
@@ -32,17 +31,17 @@ def parse_option():
                         help='print frequency')
     parser.add_argument('--save_freq', type=int, default=50,
                         help='save frequency')
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=128,
                         help='batch_size')
     parser.add_argument('--num_workers', type=int, default=64,
                         help='num of workers to use')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=60,
                         help='number of training epochs')
 
     # optimization
     parser.add_argument('--learning_rate', type=float, default=0.3,
                         help='learning rate')
-    parser.add_argument('--lr_decay_epochs', type=str, default='60,75,90',
+    parser.add_argument('--lr_decay_epochs', type=str, default='30,40,50',
                         help='where to decay lr, can be a list')
     parser.add_argument('--lr_decay_rate', type=float, default=0.2,
                         help='decay rate for learning rate')
@@ -55,9 +54,6 @@ def parse_option():
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--dataset', type=str, default='biggan',
                         choices=['biggan', 'cifar10', 'cifar100', 'imagenet100', 'imagenet100K', 'imagenet', 'voc2007'], help='dataset')
-    parser.add_argument('-s', '--cache_folder', type=str,
-                        default='tensorboards_test',
-                        help='the saving folder')
 
     # other setting
     parser.add_argument('--cosine', action='store_true',
@@ -70,7 +66,7 @@ def parse_option():
 
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
-                        default='/data/vision/torralba/datasets/imagenet_pytorch_new',
+                        default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
                         help='the data folder')
 
     opt = parser.parse_args()
@@ -98,16 +94,6 @@ def parse_option():
                     1 + math.cos(math.pi * opt.warm_epochs / opt.epochs)) / 2
         else:
             opt.warmup_to = opt.learning_rate
-
-    opt.tb_path = os.path.join(opt.cache_folder, '/data/vision/phillipi/ganclr/models/tensorboards_test/')
-    ckpt_red = opt.ckpt.replace('/data/vision/', '').replace('/', '_').replace('last.pth', '').replace('torralba_', '').replace('phillipi_', '').replace('_data_vision_phillipi_ganclr_models_tensorboards_test', '')
-    opt.fn = ckpt_red+'_lr.{}'.format(opt.learning_rate)
-    opt.tb_folder = os.path.join(opt.tb_path, ckpt_red+'_lr.{}'.format(opt.learning_rate)).strip()
-    
-    gan_models_idx = opt.tb_folder.find('gan_models_')
-    opt.tb_folder = opt.tb_path + opt.tb_folder[gan_models_idx+11:]
-    if not os.path.isdir(opt.tb_folder):
-        os.makedirs(opt.tb_folder)
 
     if opt.dataset == 'cifar10':
         opt.img_size = 32
@@ -409,8 +395,6 @@ def main():
     # build optimizer
     optimizer = set_optimizer(opt, classifier)
 
-    logger = tb_logger.Logger(logdir=opt.tb_folder, flush_secs=2)
-    print("Logging in {}".format(opt.tb_folder))
     # training routine
     for epoch in range(1, opt.epochs + 1):
         adjust_learning_rate(opt, optimizer, epoch)
@@ -422,20 +406,13 @@ def main():
         time2 = time.time()
         print('Train epoch {}, total time {:.2f}, accuracy:{:.2f}'.format(
             epoch, time2 - time1, acc))
-        logger.log_value('loss_train', loss, epoch)
-        logger.log_value('acc_train', acc, epoch)
 
         # eval for one epoch
         loss, val_acc = validate(val_loader, model, classifier, criterion, opt)
-        logger.log_value('loss_eval', loss, epoch)
-        logger.log_value('acc_eva;', val_acc, epoch)
         if val_acc > best_acc:
             best_acc = val_acc
 
     print('best accuracy: {:.2f}'.format(best_acc))
-    fn = opt.fn
-    with open(fn+'.txt', 'w+') as f:
-        f.write('best accuracy: {:.2f}'.format(best_acc))
 
 
 if __name__ == '__main__':
