@@ -120,6 +120,14 @@ CMC
 LearningView
 PyContrast
 
+# extra code
+main_linear_orig.py
+main_linear_yong.py
+main_supcon.py
+main_supcon_imagenet100.py
+main_supcon_orig.py
+main_unified_adam.py
+
 # pyenv
 .python-version
 
