@@ -1,4 +1,4 @@
-# ganCLR readme
+# GenRep readme
 
 Before running, setting the path via lines [here](https://github.com/ali-design/ganCLR/blob/master/main_supcon.py#L79-L81)
 
