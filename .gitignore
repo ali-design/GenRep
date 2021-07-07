@@ -69,6 +69,7 @@ my_rename.py
 main_linear.py
 main_unified_inverter.py
 
+# log dirs 
 exprs_logs
 logs_1k
 logs_1k_test_fake_match_real
@@ -115,6 +116,10 @@ ipython_config.py
 bigbigan_code
 utils/walk_weights_biggan_deep
 exprs_logs
+CMC
+LearningView
+PyContrast
+
 # pyenv
 .python-version
 
