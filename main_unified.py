@@ -130,6 +130,9 @@ def parse_option():
     if opt.mix_ratio > 0:
         opt.model_name = '{}_mix_ratio{}'.format(opt.model_name, int(opt.mix_ratio*100))
         
+    if opt.syncBN:
+        opt.model_name = '{}_syncBN'.format(opt.model_name)
+        
     # warm-up for large-batch training,
     if opt.batch_size > 256:
         opt.warm = True

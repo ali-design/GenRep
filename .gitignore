@@ -68,11 +68,15 @@ db.sqlite3-journal
 my_rename.py
 main_linear.py
 main_unified_inverter.py
+
 exprs_logs
 logs_1k
+logs_1k_test_fake_match_real
 logs_1k_test_simclr
+logs_1k_test_simclr_lr0.3
 logs_1k_test_simclr_lr1
 logs_1k_test_simclr_lr30
+logs_1k_test_supcon_lr0.3
 logs_1k_test_supcon_lr30
 logs_1k_test_supcon_lr5
 logs_1k_train_simclr
@@ -82,6 +86,7 @@ logs_1k_val_real
 logs_debug
 st_logs_1k_test_simclr
 st_logs_1k_test_supcon
+
 # Flask stuff:
 instance/
 .webassets-cache
