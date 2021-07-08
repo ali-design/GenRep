@@ -1,7 +1,7 @@
 # GenRep
 [Project Page](https://ali-design.github.io/GenRep/) |  [Paper](https://arxiv.org/abs/2106.05258) 
 
-<img src='img/teaser.png' width=400>  
+<img src='img/teaser.png' width=450>  
 
 Generative Models as a Data Source for Multiview Representation Learning\
 [Ali Jahanian](http://people.csail.mit.edu/jahanian), [Xavier Puig](https://people.csail.mit.edu/xavierpuig/), [Yonglong Tian](https://people.csail.mit.edu/yonglong/), [Phillip Isola](http://web.mit.edu/phillipi/)
@@ -17,7 +17,7 @@ Generative Models as a Data Source for Multiview Representation Learning\
 3. [Training](#training) - pipeline for training your encoder<br>
 4. [Testing](#testing) - pipeline for testing/transfer learning your encoder<br>
 5. [Notebooks](#notebooks) - some jupyter notebooks, good place to start for trying your own dataset generations<br>
-5. [Colab Demo](#colab) - a colab notebook<br>
+5. [Colab Demo](#colab) - a colab notebook to demo how the contrastive encoder training works<br>
 
 <a name="setup"/>
 
@@ -155,7 +155,7 @@ python -m ipykernel install --user --name genrep_env
 
 ## Colab
 
-- You can find a google colab notebook implementation [here].
+- You can find a google colab notebook implementation [here](https://colab.research.google.com/drive/1NTReWjgJBQTLUQJF1D3K26h1RLy7V3LD?authuser=1).
 
 ### Citation
 If you use this code for your research, please cite our paper:
