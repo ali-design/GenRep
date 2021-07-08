@@ -64,6 +64,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 *.txt
+.__afs5E7B
 
 my_rename.py
 main_linear.py
