@@ -1,0 +1,34 @@
+name: genrep_env
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python
+  - cudatoolkit
+  - pytorch
+  - cudnn
+  - torchvision
+  - torchaudio
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - jupyter
+  - pip
+  - tensorflow=1.15.0
+  - tensorflow-base=1.15.0
+  - tensorflow-estimator=1.15.1
+  - tensorflow-gpu=1.15.0
+  - tensorflow-hub=0.7.0
+  - tqdm
+  - ipython
+  - pillow
+  - opencv
+  - scikit-learn 
+  - pandas
+  - seaborn
+  - pip:
+     - oyaml
+     - ninja
+     - ipywidgets
+     - mat4py
