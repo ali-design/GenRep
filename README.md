@@ -1,7 +1,7 @@
 # GenRep
 [Project Page](https://ali-design.github.io/GenRep/) |  [Paper](https://arxiv.org/abs/2106.05258) 
 
-<img src='img/teaser.png' width=600>  
+<img src='img/teaser.png' width=400>  
 
 Generative Models as a Data Source for Multiview Representation Learning\
 [Ali Jahanian](http://people.csail.mit.edu/jahanian), [Xavier Puig](https://people.csail.mit.edu/xavierpuig/), [Yonglong Tian](https://people.csail.mit.edu/yonglong/), [Phillip Isola](http://web.mit.edu/phillipi/)
@@ -44,11 +44,21 @@ bash resources/download_resources.sh
 
 ## Visualizations
 
-**Plotting image panels:**
+**Plotting contrasting images:**
 <br>
-<img src='img/panel.png' width=400>
+<img src='img/panels.png' width=300>
+
+- Run `simclr_views_paper_figure.ipynb` and `supcon_views_paper_figure.ipynb` to get the anchors and their contrastive pairs showin in the paper. 
+
+- To generate more images run `biggan_generate_samples_paper_figure.py`.
+
+
+**Generating the plots in the paper:**
+<br>
+<img src='img/plots.png' width=300>
 
 - Run `plots.ipynb` to get the plots in the paper. We added some pretrained weights in the `./models_pretrained` if you want to run tests on them, but you can also use the models you train yourself.
+
 <!-- 
 ```bash
 python vis_image.py \
