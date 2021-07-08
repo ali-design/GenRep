@@ -46,18 +46,18 @@ bash resources/download_resources.sh
 
 **Plotting contrasting images:**
 <br>
-<img src='img/panels.png' width=300>
+<img src='img/panels.png'>
 
 - Run `simclr_views_paper_figure.ipynb` and `supcon_views_paper_figure.ipynb` to get the anchors and their contrastive pairs showin in the paper. 
 
 - To generate more images run `biggan_generate_samples_paper_figure.py`.
 
 
-**Generating the plots in the paper:**
+<!-- **Generating the plots in the paper:**
 <br>
 <img src='img/plots.png' width=300>
 
-- Run `plots.ipynb` to get the plots in the paper. We added some pretrained weights in the `./models_pretrained` if you want to run tests on them, but you can also use the models you train yourself.
+- Run `plots.ipynb` to get the plots in the paper. We added some pretrained weights in the `./models_pretrained` if you want to run tests on them, but you can also use the models you train yourself. -->
 
 <!-- 
 ```bash
