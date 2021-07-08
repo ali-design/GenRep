@@ -164,7 +164,9 @@ If you use this code for your research, please cite our paper:
 @article{jahanian2021generative, 
 	title={Generative Models as a Data Source for Multiview Representation Learning}, 
 	author={Jahanian, Ali and Puig, Xavier and Tian, Yonglong and Isola, Phillip}, 
-	journal={arXiv preprint arXiv:2106.05258}, year={2021} }
+	journal={arXiv preprint arXiv:2106.05258}, 
+	year={2021} 
+}
 ```
 
 
