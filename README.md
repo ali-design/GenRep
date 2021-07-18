@@ -145,11 +145,33 @@ CUDA_VISIBLE_DEVICES=0,1 python main_linear.py --learning_rate 0.3 \
 ### Pascal VOC2007 classification
 To test classification on PascalVOC, you will extract features from a pretrained model and run an SVM on top of the futures. You can do that running the following code:
 ```bash
+cd transfer_classification
 ./run_svm_voc.sh 0 path_to_your_encoder name_experiment path_to_pascal_voc
 ```
 
 The code is based on [FAIR Self-Supervision Benchmark
 ](https://github.com/facebookresearch/fair_self_supervision_benchmark)
+
+
+### Pascal VOC2007 detection
+To test transfer in detection experiments do the following:
+
+1. Enter into transfer_detection
+2. [Install detectron2](https://detectron2.readthedocs.io/en/latest/tutorials/install.html), replacing the `detectron2` folder. 
+3. Convert the checkpoints `path_to_your_encoder` to detectron2 format:
+```bash
+python convert_ckpt.py path_to_your_encoder output_ckpt.pth
+```
+4. Add a symlink from the PascalVOC07 and PascalVOC12 into the `datasets` folder.
+5. Train the detection model:
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train_net.py \
+      --num-gpus 8 \
+      --config-file config/pascal_voc_R_50_C4_transfer.yaml \
+      MODEL.WEIGHTS ckpts/${name}.pth \
+      OUTPUT_DIR outputs/${name}
+
+```
 
 <a name="notebooks"/> 
 
