@@ -132,13 +132,24 @@ CUDA_VISIBLE_DEVICES=0,1 python main_unified.py --method SupCon --cosine \
 	- ImageNet linear classification
 	- PASCAL classification
 	- PASCAL detection
-- An example of commands for linear classification:
+
+### Imagenet linear classification
+Below is the command to train a linear classifier on top of the features learned
 ```bash
 # test your unconditional or conditional IGM trained model (i.e. the encoder you trained in the previous section) on ImageNet
 CUDA_VISIBLE_DEVICES=0,1 python main_linear.py --learning_rate 0.3 \ 
 	--ckpt path_to_your_encoder --data_folder path_to_imagenet \
 	>> log_test_your_model_name.txt &
 ```
+
+### Pascal VOC2007 classification
+To test classification on PascalVOC, you will extract features from a pretrained model and run an SVM on top of the futures. You can do that running the following code:
+```bash
+./run_svm_voc.sh 0 path_to_your_encoder name_experiment path_to_pascal_voc
+```
+
+The code is based on [FAIR Self-Supervision Benchmark
+](https://github.com/facebookresearch/fair_self_supervision_benchmark)
 
 <a name="notebooks"/> 
 
