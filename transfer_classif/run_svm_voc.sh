@@ -1,9 +1,12 @@
 #!/bin/bash
+
+ROOTPATH="./transfer_classif"
+DATAFOLDER="."
 echo "Extracting..."
-CUDA_VISIBLE_DEVICES=$1 python extract_features.py --dataset voc2007 --data_folder /data/vision/torralba/datasets/PASCAL2007/ --ckpt $2 --expname $3
+CUDA_VISIBLE_DEVICES=$1 python extract_features.py --dataset voc2007 --data_folder $DATAFOLDER --ckpt $2 --expname $3
 NAMEEXP=$3
-OUT_PATH="../../scratch/svm_models/voc2007/${NAMEEXP}"
-OUT_FEATS="../../scratch/features/voc2007/data_${NAMEEXP}"
+OUT_PATH="${ROOTPATH}/svm_models/voc2007/${NAMEEXP}"
+OUT_FEATS="${ROOTPATH}/features/voc2007/data_${NAMEEXP}"
 echo $OUT_FEATS
 echo "Training..."
 

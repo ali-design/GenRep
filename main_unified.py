@@ -219,18 +219,6 @@ def set_loader(opt):
     elif opt.dataset == 'gan':
         train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
                 transform=train_transform, numcontrast=opt.numcontrast, ratio_data=opt.ratiodata)        
-
-        #if opt.walk_method == 'random':
-        #    train_dataset = GansetDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-        #                                  transform=train_transform, numcontrast=opt.numcontrast)        
-
-        #elif opt.walk_method == 'steer':
-        #    train_dataset = GansteerDataset(root_dir=os.path.join(opt.data_folder, 'train'), 
-        #                                transform=train_transform, numcontrast=opt.numcontrast)        
-        #elif opt.walk_method == 'none':
-        #    train_dataset = datasets.ImageFolder(root=os.path.join(opt.data_folder, 'train'),
-        #                                transform=TwoCropTransform(train_transform))
-        ## Ali: ToDo: elif opt.walk_method == 'pca'...
     else:
         raise ValueError(opt.dataset)
 
@@ -280,16 +268,17 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
     top1 = AverageMeter()
     end = time.time()
 
-    ## Ali: Todo: this data loading depends on if we generate positive on the fly or load them. if loading then we have data[0] and data[1]
-    ## so we need to check for opt.encoding_type (currently it's good for SupCon with gan data, i.e., positive pairs are from gan)
 
-    # for idx, (images, labels) in enumerate(train_loader):
-    #     data_time.update(time.time() - end)
     print("Start train")
 
-    # size_dataset should be 1.3M for imagenet1K and 130K for imagenet100
-    # we divide by ratio data cause that increases, but when ratio data < 1, it relicates
-    # the datset, and so size is the same as 1
+    # Size_dataset always should be 1.3M for imagenet1K and 130K for imagenet100
+    # the ratiodata means how many unique images we have compared to the original dataset
+    # if ratiodata < 1, we just repeat the dataset in the dataloader 1 / ratiodata times.
+    # When ratiodata > 1, we train for 1 / ratiodata times, to keep the number of grad updates constant
+    
+    # iter_epoch is how many iterations every epoch has, so it will be len(data)/batch_size for ratio < 1
+    # and len(data/ratio) / batch_size for the above reason 
+
     size_dataset = len(train_loader.dataset) / max(opt.ratiodata, 1)
 
     # how many iterations per epoch
@@ -301,10 +290,6 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             curr_epoch = int(epoch + (idx / iter_epoch))
             adjust_learning_rate(opt, optimizer, curr_epoch)
             
-#             if opt.ratiodata > 1:
-#                 save_file = os.path.join(
-#                     opt.save_folder, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
-#                 save_model(model, optimizer, opt, epoch, grad_update, class_count, save_file)
 
         if len(data) == 2:
             images = data[0]
@@ -318,17 +303,16 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             labels_class = data[3]
         else:
             raise NotImplementedError
-        # print('images[0].shape, images[1].shape', images[0].shape, images[1].shape)
+
         data_time.update(time.time() - end)
         if opt.encoding_type != 'contrastive':
-            # We only pick one of images
+            # We only pick one of images, the non anchor one
             images = images[1]
         else:
             anchors = images[0]
             neighbors = images[1]
             images = torch.cat([images[0].unsqueeze(1), images[1].unsqueeze(1)],
                                dim=1)
-            # print('2) images shape', images.shape)
 
             images = images.view(-1, 3, int(opt.img_size*0.875), int(opt.img_size*0.875)).cuda(non_blocking=True)
             # print('3) images shape', images.shape)
@@ -407,8 +391,6 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
 
             if not os.path.isdir(save_file):
                 os.makedirs(save_file)
-#             anchors_16 = anchors[::16]
-#             neighbors_16 = neighbors[::16]
             anchors_16 = anchors[:]
             neighbors_16 = neighbors[:]
             bs = anchors_16.shape[0]
@@ -418,7 +400,11 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             grid_images += np.array(opt.mean)[:, None, None]
             grid_images = (255*grid_images.cpu().numpy()).astype(np.uint8)
             grid_images = grid_images[None, :].transpose(0,2,3,1)
+
+            ##################
+            # Xavi: Can this be removed ?
             cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}.png', grid_images[0])
+
 
             if opt.dataset == 'gan_debug':
                 with open('./utils/imagenet_class_name.json', 'rb') as fid:
@@ -461,7 +447,8 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
                 neighbors_16 = neighbors_16.transpose(0,2,3,1)
                 for i in range(neighbors_16.shape[0]):
                     cv2.imwrite(f'{save_file}/image_epoch_{curr_epoch}_{i}_neighbor_{labels_name[i]}.png', neighbors_16[i])
-                
+            ########
+
             other_metrics = {}
 
             if opt.encoding_type == 'crossentropy':
@@ -474,7 +461,6 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
             # tensorboard logger
             logger.log_value('loss_avg', losses.avg, curr_epoch)
             logger.log_value('grad_update', grad_update, curr_epoch)
-#             logger.log_value('class_count', class_count, curr_epoch)
             logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], curr_epoch)
             for metric_name, metric_value in other_metrics.items():
                 if metric_name == 'image':

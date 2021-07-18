@@ -56,7 +56,7 @@ def parse_option():
 
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
-                        default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
+                        default='',
                         help='the data folder')
     parser.add_argument('--expname', type=str)
 
