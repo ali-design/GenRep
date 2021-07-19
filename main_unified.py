@@ -92,10 +92,8 @@ def parse_option():
 
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
-                        default='/data/scratch-oc40/jahanian/ganclr_results/ImageNet100',
                         help='the data folder')
     parser.add_argument('-s', '--cache_folder', type=str,
-                        default='/data/scratch-oc40/jahanian/ganclr_results/',
                         help='the saving folder')
 
     opt = parser.parse_args()
