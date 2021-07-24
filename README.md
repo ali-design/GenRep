@@ -177,7 +177,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train_net.py \
 
 ## Notebooks
 
-- We provide some examples of jupyter notebooks illustrating the full training pipeline. See [notebooks](./notebooks).
+- We provide some examples of jupyter notebooks illustrating the full training pipeline. See [notebooks](./utils).
 - If using the provided conda environment, you'll need to add it to the jupyter kernel:
 ```bash
 source activate genrep_env
