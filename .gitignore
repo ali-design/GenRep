@@ -67,6 +67,7 @@ db.sqlite3-journal
 .__afs5E7B
 .DS_Store
 models_pretrained/paths_to_models.html
+IGM_datasets/paths_to_IGM_datasets.html
 
 my_rename.py
 main_linear.py
