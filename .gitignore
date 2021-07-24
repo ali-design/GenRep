@@ -65,6 +65,8 @@ db.sqlite3
 db.sqlite3-journal
 *.txt
 .__afs5E7B
+.DS_Store
+models_pretrained/paths_to_models.html
 
 my_rename.py
 main_linear.py
