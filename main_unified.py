@@ -238,7 +238,6 @@ def set_model(opt):
         criterion = torch.nn.CrossEntropyLoss()
 
     elif opt.encoding_type == 'autoencoding':
-        print("TODO(ali): Implement here")
         raise NotImplementedError
 
     # enable synchronized Batch Normalization
