@@ -198,6 +198,8 @@ We thank the authors of these repositories:
 -  [GAN Steerability](https://github.com/ali-design/gan_steerability#notebooks)
 -  [BigBiGAN](https://github.com/deepmind/deepmind-research/tree/master/bigbigan)
 -  [BigGAN](https://github.com/huggingface/pytorch-pretrained-BigGAN)
+-  [PASCAL](https://github.com/facebookresearch/fair_self_supervision_benchmark)
+
 
 
 
