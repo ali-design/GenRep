@@ -190,6 +190,17 @@ python -m ipykernel install --user --name genrep_env
 
 - You can find a google colab notebook implementation [here](https://colab.research.google.com/drive/1NTReWjgJBQTLUQJF1D3K26h1RLy7V3LD?authuser=1).
 
+## git Acknowledgements
+We thank the authors of these repositories:
+
+
+-  [PyContrast](https://github.com/HobbitLong/PyContrast)
+-  [GAN Steerability](https://github.com/ali-design/gan_steerability#notebooks)
+-  [BigBiGAN](https://github.com/deepmind/deepmind-research/tree/master/bigbigan)
+-  [BiGGAN](https://github.com/huggingface/pytorch-pretrained-BigGAN)
+
+
+
 ### Citation
 If you use this code for your research, please cite our paper:
 
