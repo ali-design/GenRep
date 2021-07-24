@@ -197,7 +197,7 @@ We thank the authors of these repositories:
 -  [PyContrast](https://github.com/HobbitLong/PyContrast)
 -  [GAN Steerability](https://github.com/ali-design/gan_steerability#notebooks)
 -  [BigBiGAN](https://github.com/deepmind/deepmind-research/tree/master/bigbigan)
--  [BiGGAN](https://github.com/huggingface/pytorch-pretrained-BigGAN)
+-  [BigGAN](https://github.com/huggingface/pytorch-pretrained-BigGAN)
 
 
 
