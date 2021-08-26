@@ -132,6 +132,9 @@ CUDA_VISIBLE_DEVICES=0,1 python main_unified.py --method SupCon --cosine \
 	- ImageNet linear classification
 	- PASCAL classification
 	- PASCAL detection
+- Here is a diagram illustrating the general pipeline:
+
+<img src='img/GenRep_pipeline.png' width=600>  
 
 ### Imagenet linear classification
 Below is the command to train a linear classifier on top of the features learned
