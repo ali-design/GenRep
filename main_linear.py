@@ -237,8 +237,8 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
         # compute loss
         with torch.no_grad():
             features = model.encoder(images)
-            output = classifier(features.detach())
-            loss = criterion(output, labels)
+        output = classifier(features.detach())
+        loss = criterion(output, labels)
 
         # update metric
         losses.update(loss.item(), bsz)
