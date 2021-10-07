@@ -70,7 +70,7 @@ def parse_option():
     parser.add_argument('-d', '--data_folder', type=str,
                         help='the folder of the dataset you want to evaluate')
 
-     opt = parser.parse_args()
+    opt = parser.parse_args()
 
     iterations = opt.lr_decay_epochs.split(',')
     opt.lr_decay_epochs = list([])
@@ -107,7 +107,7 @@ def parse_option():
         opt.n_cls = 1000
     else:
         raise ValueError('dataset not supported: {}'.format(opt.dataset))
-
+    #ipdb.set_trace()
     return opt
 
 
@@ -237,8 +237,8 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, opt):
         # compute loss
         with torch.no_grad():
             features = model.encoder(images)
-            output = classifier(features.detach())
-            loss = criterion(output, labels)
+        output = classifier(features.detach())
+        loss = criterion(output, labels)
 
         # update metric
         losses.update(loss.item(), bsz)

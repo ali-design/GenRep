@@ -64,7 +64,7 @@ def get_chosen_costs(opts, num_classes):
 
 
 def test_svm(opts):
-    assert os.path.exists(opts.data_file), "Data file not found. Abort!"
+    assert os.path.exists(opts.data_file), f"Data file {opts.data_file} not found. Abort!"
     
     file_train = np.load(os.path.join(opts.data_file, 'val.npz'))
     features = file_train['features']

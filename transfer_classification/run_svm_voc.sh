@@ -2,10 +2,10 @@
 
 ROOTPATH="./transfer_classif"
 echo "Extracting..."
-CUDA_VISIBLE_DEVICES=$1 python extract_features.py --dataset voc2007 --data_folder $4 --ckpt $2 --expname $3
 NAMEEXP=$3
 OUT_PATH="${ROOTPATH}/svm_models/voc2007/${NAMEEXP}"
 OUT_FEATS="${ROOTPATH}/features/voc2007/data_${NAMEEXP}"
+CUDA_VISIBLE_DEVICES=$1 python extract_features.py --dataset voc2007 --data_folder $4 --ckpt $2 --expname $3 --out $OUT_FEATS
 echo $OUT_FEATS
 echo "Training..."
 

@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import tensorboard_logger as tb_logger
 import numpy as np
 import cv2
 import ipdb
@@ -10,7 +11,6 @@ import time
 
 import torchvision.utils as vutils
 import math
-import tensorboard_logger as tb_logger
 import torch
 import torch.backends.cudnn as cudnn
 from torchvision import transforms, datasets
@@ -146,7 +146,7 @@ def parse_option():
                     1 + math.cos(math.pi * opt.warm_epochs / opt.epochs)) / 2
         else:
             opt.warmup_to = opt.learning_rate
- 
+     
     opt.tb_folder = os.path.join(opt.tb_path, opt.model_name)
     if not os.path.isdir(opt.tb_folder):
         os.makedirs(opt.tb_folder)
@@ -306,8 +306,14 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, grad_update, cl
 
         data_time.update(time.time() - end)
         if opt.encoding_type != 'contrastive':
-            # We only pick one of images, the non anchor one
-            images = images[1]
+            # We only pick one of images, the anchor one
+            prev_im = images
+            if opt.numcontrast == 0:
+                images = images[0]
+            else:
+                images = images[1]
+            anchors = images
+            neighbors = images
         else:
             anchors = images[0]
             neighbors = images[1]

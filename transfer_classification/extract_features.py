@@ -54,6 +54,9 @@ def parse_option():
     parser.add_argument('--ckpt', type=str, default='',
                         help='path to pre-trained model')
 
+    parser.add_argument('--out', type=str, default='',
+                        help='path to pre-trained model')
+
     # specifying folders
     parser.add_argument('-d', '--data_folder', type=str,
                         default='',
@@ -255,9 +258,10 @@ def main():
 
     # training routine
     dataset = opt.dataset
-    features_folder = 'data_{}'.format(mode)
-    f1 = '../../scratch/features/{}/{}/train.npz'.format(dataset, features_folder)
-    f2 = '../../scratch/features/{}/{}/val.npz'.format(dataset, features_folder)
+    features_folder = opt.out
+    f1 = '{}/train.npz'.format(features_folder)
+    f2 = '{}/val.npz'.format(features_folder)
+    print(f1, f2)
     fts_train, labels_train = extract(train_loader, model, opt)
     fts_val, labels_val = extract(val_loader, model, opt)
 
