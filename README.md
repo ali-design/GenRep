@@ -35,7 +35,7 @@ conda env create -f environment.yml
 ```
 
 - Download resources:
-	- In order to generate datasets from IGMs, you would need to download those IGMs from their git repositories, e.g. [BigBiGAN](https://github.com/deepmind/deepmind-research/tree/master/bigbigan), [BigGAN](https://github.com/huggingface/pytorch-pretrained-BigGAN) and [StyleGAN2](https://github.com/davidbau/rewriting). You can then use our generating scripts in [utils](https://github.com/ali-design/GenRep/tree/master/utils) directory to generate your data. For instance, for the case of StyleGAN2 you can see a demo in this [notebook](https://github.com/ali-design/GenRep/blob/master/utils/sgan/generate_stylegan2_cars.ipynb) and this [script](https://github.com/ali-design/GenRep/blob/master/utils/sgan/generate_stylegan2_cars.py).
+	- In order to generate datasets from IGMs, you would need to download those IGMs from external git repositories, e.g. [BigBiGAN](https://github.com/deepmind/deepmind-research/tree/master/bigbigan), [BigGAN](https://github.com/huggingface/pytorch-pretrained-BigGAN) and [StyleGAN2](https://github.com/davidbau/rewriting). You can then use our generating scripts in [utils](https://github.com/ali-design/GenRep/tree/master/utils) directory to generate your data. For instance, for the case of StyleGAN2 you can see a demo in this [notebook](https://github.com/ali-design/GenRep/blob/master/utils/sgan/generate_stylegan2_cars.ipynb) and this [script](https://github.com/ali-design/GenRep/blob/master/utils/sgan/generate_stylegan2_cars.py).
 
 
 <a name="visualizations"/>
